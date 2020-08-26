@@ -3,9 +3,4 @@
 
 ## TODO
 
-* requirements
-* setup.py
-* source
-* tests
 * get initial layer
-* scripts
