@@ -19,6 +19,7 @@ class MPLayer(keras.layers.Layer):
     def call(self, inputs):
         nodes, nlist, edges = inputs
         # TODO add batch index
+        # https://github.com/whitead/graphnmr/blob/master/graphnmr/gcnmodel.py#L824
         sliced_features = tf.gather_nd(nodes, nlist)
         prod = tf.einsum('bijn,bijl,lmn->bijm', edges, sliced_features, self.w)
         # now we pool across neighbors
