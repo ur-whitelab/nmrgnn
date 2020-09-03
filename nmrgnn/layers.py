@@ -15,8 +15,8 @@ class MPLayer(keras.layers.Layer):
         )
 
     def call(self, inputs):
-        # node -> N x N x node_feature
-        # nlist -> N x NN x 3
+        # node ->  N x node_feature
+        # nlist -> N x NN 
         nodes, nlist, edges = inputs
         # Get node matrix sliced by nlist -> N x NN x node_features
         sliced_features = tf.gather(nodes, nlist)
@@ -27,5 +27,5 @@ class MPLayer(keras.layers.Layer):
             out = self.activation(reduced)
         else:
             out = reduced
-        # output -> N x Z number of atoms x number of elements
+        # output -> N x D number of atoms x node feature dimension
         return out

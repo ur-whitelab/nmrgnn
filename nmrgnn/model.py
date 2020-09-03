@@ -6,14 +6,13 @@ from .layers import *
 # An object stores model hyper parameters
 class GNNHypers:
     def __init__(self):
-        self.ATOM_FEATURE_SIZE = 16 # Size of space ito which we project elements
+        self.ATOM_FEATURE_SIZE = 256 # Size of space ito which we project elements
         self.EDGE_FEATURE_SIZE = 4 # Size of space onto which we project bonds (singlw, double, etc.)
         self.MP_LAYERS = 4 # Number of layers in Message Passing
         self.FC_LAYERS = 3 # Number of layers in Fully Connected
         self.EDGE_FC_LAYERS = 2 # Number of layers in Edge FC (Edge embedding)
         self.MP_ACTIVATION = tf.keras.activations.relu
         self.FC_ACTIVATION = tf.keras.activations.relu
-        self.RESIDUE = True # Stored true -> Using residue block
 
 # Fully Connected Layers BLOCK for edge matrix
 class EdgeFCBlock(keras.layers.Layer):
@@ -50,20 +49,12 @@ class MPBlock(keras.layers.Layer):
         # [nodes, nlist, edges]
         # where edges is the output from EdgeFCBlock
         nodes, nlist, edges = inputs
-        # Without Residue Block
-        if not self.hypers.RESIDUE:
-            for i in range(self.hypers.MP_LAYERS):
-                nodes = self.mp[i](inputs)
-                # only nodes matrix is updated
-                inputs = [nodes, nlist, edges]
         # With Residue Block
-        else:
-            for i in range(self.hypers.MP_LAYERS - 1):
-                nodes = self.mp[i](inputs)
-                # only nodes matrix is updated
-                inputs = [nodes, nlist, edges]
-            # Residue Block
-            nodes = self.mp[-1](inputs) + nodes
+        # Skip Connection applied at every layer
+        for i in range(self.hypers.MP_LAYERS):
+            nodes = self.mp[i](inputs) + nodes
+            # only nodes matrix is updated
+            inputs = [nodes, nlist, edges]
         # Dimension of output nodes matrix shoulds matches input nodes matrix
         return nodes    
 
