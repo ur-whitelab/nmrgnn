@@ -16,7 +16,8 @@ setup(name='nmrgnn',
       install_requires=[
           'tensorflow >= 2.3',
           'click',
-          'numpy'],
+          'numpy',
+          'nmrdata'],
       test_suite='tests',
       zip_safe=True,
       entry_points='''
