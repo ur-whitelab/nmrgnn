@@ -12,7 +12,8 @@ class MPLayer(keras.layers.Layer):
         self.w = self.add_weight(
             shape=(
                 node_feature_shape[-1], node_feature_shape[-1], edge_feature_shape[-1]),
-            trainable=True
+            trainable=True,
+            name='w'
         )
 
     def call(self, inputs):
