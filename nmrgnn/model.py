@@ -17,6 +17,8 @@ class GNNHypers:
         self.EDGE_FC_LAYERS = 2  # Number of layers in Edge FC (Edge embedding)
         self.MP_ACTIVATION = tf.keras.activations.relu
         self.FC_ACTIVATION = tf.keras.activations.relu
+        self.RBF_HIGH = 0.12  # nm
+        self.RBF_LOW = 0.05
 
 # Fully Connected Layers BLOCK for edge matrix
 
@@ -92,6 +94,8 @@ class GNNModel(keras.Model):
     def __init__(self, hypers, peak_standards):
         super(GNNModel, self).__init__()
         self.hypers = hypers
+        self.edge_rbf = RBFExpansion(
+            hypers.RBF_LOW, hypers.RBF_HIGH, hypers.EDGE_FEATURE_SIZE)
         self.edge_fc_block = EdgeFCBlock(hypers)
         self.mp_block = MPBlock(hypers)
         self.fc_block = FCBlock(hypers)
@@ -111,19 +115,15 @@ class GNNModel(keras.Model):
 
     def call(self, inputs, training=None):
         # node_input should be 1 hot!
-        # squeeze out batch size of 1 (if present)
-        node_input, nlist_input, edge_input, inv_degree = [
-            tf.squeeze(i) for i in inputs]
+        node_input, nlist_input, edge_input, inv_degree = inputs
 
-        edge_embeded = self.edge_fc_block(edge_input)
+        rbf_edges = self.edge_rbf(edge_input)
+        edge_embeded = self.edge_fc_block(rbf_edges)
         mp_inputs = [node_input, nlist_input, edge_embeded, inv_degree]
         semi_nodes = self.mp_block(mp_inputs)
         out_nodes = self.fc_block(semi_nodes)
         full_peaks = self.out_layer(out_nodes)
 
-        if training:
-            peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
-        else:
-            peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
-                                  node_input * self.peak_avg, axis=-1)
+        peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
+                              node_input * self.peak_avg, axis=-1)
         return peaks

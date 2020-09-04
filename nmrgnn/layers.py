@@ -36,3 +36,34 @@ class MPLayer(keras.layers.Layer):
             out = reduced
         # output -> N x D number of atoms x node feature dimension
         return out
+
+
+class RBFExpansion(tf.keras.layers.Layer):
+    R''' A  continuous-filter convolutional radial basis filter input from
+    `SchNet <https://arxiv.org/pdf/1706.08566.pdf>`_.
+    The input should be a rank ``K`` tensor of distances. The output will be rank ``K``
+    with the new axis being of dimension ``count``. The distances are converted with
+    :math:`\exp\gamma\left(d - \mu\right)^2` where :math:`\mu` is an evenly spaced
+    grid from ``low`` to ``high`` containing ``count`` elements. The distance between
+    elements is :math:`1 / \gamma`.
+    '''
+
+    def __init__(self, low, high, count):
+        R'''
+        :param low: lowest :math:`\mu`
+        :type low: float
+        :param high: high :math:`\mu` (inclusive)
+        :type high: float
+        :param count: Number of elements in :math:`\mu` and output last axis dimension
+        :type count: int
+        '''
+        super(RBFExpansion, self).__init__(name='rbf-layer')
+        self.low = low
+        self.high = high
+        self.centers = tf.cast(tf.linspace(low, high, count), dtype=tf.float32)
+        self.gap = self.centers[1] - self.centers[0]
+
+    def call(self, inputs):
+        rbf = tf.math.exp(-(inputs[..., tf.newaxis] -
+                            self.centers)**2 / self.gap)
+        return rbf
