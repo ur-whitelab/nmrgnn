@@ -10,13 +10,13 @@ from .layers import *
 
 class GNNHypers:
     def __init__(self):
-        #TODO self.ATOM_FEATURE_SIZE = 256  # Size of space ito which we project elements
+        # TODO self.ATOM_FEATURE_SIZE = 256  # Size of space ito which we project elements
         # Size of space onto which we project bonds (singlw, double, etc.)
-        #TODO self.EDGE_FEATURE_SIZE = 4
+        # TODO self.EDGE_FEATURE_SIZE = 4
         self.EDGE_HIDDEN_SIZE = 128
-        #TODO self.MP_LAYERS = 4  # Number of layers in Message Passing
-        #TODO self.FC_LAYERS = 3  # Number of layers in Fully Connected
-        #TODO self.EDGE_FC_LAYERS = 2  # Number of layers in Edge FC (Edge embedding)
+        # TODO self.MP_LAYERS = 4  # Number of layers in Message Passing
+        # TODO self.FC_LAYERS = 3  # Number of layers in Fully Connected
+        # TODO self.EDGE_FC_LAYERS = 2  # Number of layers in Edge FC (Edge embedding)
         self.MP_ACTIVATION = tf.keras.activations.relu
         self.FC_ACTIVATION = tf.keras.activations.relu
         self.RBF_HIGH = 0.12  # nm
@@ -29,8 +29,6 @@ class GNNHypers:
         self.hp.Int('mp_layers', 2, 6, step=1)
         self.hp.Int('fc_layers', 2, 6, step=1)
         self.hp.Int('edge_fc_layers', 2, 6, step=1)
-
-
 
 
 # Fully Connected Layers BLOCK for edge matrix
@@ -120,21 +118,21 @@ class GNNModel(keras.Model):
             self.peak_std[k] = v[2]
             self.peak_avg[k] = v[1]
 
-
     def build(self, input_shapes):
         # get number of elements
         num_elem = input_shapes[0][-1]
         self.out_layer = tf.keras.layers.Dense(num_elem)
         self.peak_std = self.peak_std[:num_elem]
         self.peak_avg = self.peak_avg[:num_elem]
-        
 
     def call(self, inputs, training=None):
         # node_input should be 1 hot!
+        # as written here, edge input is distance ONLY
+        # modify if you want to include type informaton
         node_input, nlist_input, edge_input, inv_degree = inputs
 
-        edge_mask = tf.cast(edge_input > 0, tf.float32)[...,tf.newaxis]
-        
+        edge_mask = tf.cast(edge_input > 0, tf.float32)[..., tf.newaxis]
+
         noised_edges = self.noise_block(edge_input, training)
         rbf_edges = self.edge_rbf(noised_edges)
         # want to preserve zeros in input

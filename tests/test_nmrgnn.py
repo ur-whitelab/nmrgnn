@@ -98,7 +98,7 @@ class test_gnnmodel(unittest.TestCase):
                 nlist[i, k] = (i + j) % 5
         nlist = tf.constant(nlist)
         # 5 nodes, 2 neighbors, 4 feature
-        edges = tf.ones((5, 2, 2))
+        edges = tf.ones((5, 2))
         # make inv degree (each one has two connections)
         inv_degree = np.ones((5,)) / 2
         inputs = [nodes, nlist, edges, inv_degree]
@@ -113,7 +113,5 @@ class test_gnnmodel(unittest.TestCase):
         # one peak per atom
         assert out_nodes.shape == (nodes.shape[0],)
 
-        # now add batch dimension
-        inputs = [i[tf.newaxis, ...] for i in inputs]
         out_nodes = model(inputs)
         assert out_nodes.shape == (nodes.shape[0],)
