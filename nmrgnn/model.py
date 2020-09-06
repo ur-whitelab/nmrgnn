@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
+import kerastuner as kt
 import os
 from .layers import *
 
@@ -9,18 +10,28 @@ from .layers import *
 
 class GNNHypers:
     def __init__(self):
-        self.ATOM_FEATURE_SIZE = 256  # Size of space ito which we project elements
+        #TODO self.ATOM_FEATURE_SIZE = 256  # Size of space ito which we project elements
         # Size of space onto which we project bonds (singlw, double, etc.)
-        self.EDGE_FEATURE_SIZE = 4
+        #TODO self.EDGE_FEATURE_SIZE = 4
         self.EDGE_HIDDEN_SIZE = 128
-        self.MP_LAYERS = 4  # Number of layers in Message Passing
-        self.FC_LAYERS = 3  # Number of layers in Fully Connected
-        self.EDGE_FC_LAYERS = 2  # Number of layers in Edge FC (Edge embedding)
+        #TODO self.MP_LAYERS = 4  # Number of layers in Message Passing
+        #TODO self.FC_LAYERS = 3  # Number of layers in Fully Connected
+        #TODO self.EDGE_FC_LAYERS = 2  # Number of layers in Edge FC (Edge embedding)
         self.MP_ACTIVATION = tf.keras.activations.relu
         self.FC_ACTIVATION = tf.keras.activations.relu
         self.RBF_HIGH = 0.12  # nm
         self.RBF_LOW = 0.01  # nm
         self.NOISE = 0.02  # add noise to distances (nm)
+        # keras-tuner
+        self.hp = kt.HyperParameters()
+        self.hp.Int('atom_feature_size', 16, 256, step=16)
+        self.hp.Int('edge_feature_size', 4, 16, step=4)
+        self.hp.Int('mp_layers', 2, 6, step=1)
+        self.hp.Int('fc_layers', 2, 6, step=1)
+        self.hp.Int('edge_fc_layers', 2, 6, step=1)
+
+
+
 
 # Fully Connected Layers BLOCK for edge matrix
 
@@ -30,12 +41,12 @@ class EdgeFCBlock(keras.layers.Layer):
         super(EdgeFCBlock, self).__init__(name='edge-fc-block')
         self.edge_fc = []
         # stack Dense Layers as a block
-        for _ in range(hypers.EDGE_FC_LAYERS - 1):
+        for _ in range(hypers.hp.get('edge_fc_layers') - 1):
             self.edge_fc.append(keras.layers.Dense(
                 hypers.EDGE_HIDDEN_SIZE, activation=hypers.FC_ACTIVATION))
         # activation function for the last layer is 'tanh'
         self.edge_fc.append(keras.layers.Dense(
-            hypers.EDGE_FEATURE_SIZE, activation="tanh"))
+            hypers.hp.get('edge_feature_size'), activation="tanh"))
 
     def call(self, edge_input):
         # edge_input is untrained edge matrix
@@ -52,7 +63,7 @@ class MPBlock(keras.layers.Layer):
         super(MPBlock, self).__init__(name='mp-block')
         self.mp = []
         # stack Message Passing Layers as a block
-        for _ in range(hypers.MP_LAYERS):
+        for _ in range(hypers.hp.get('mp_layers')):
             self.mp.append(MPLayer(hypers.MP_ACTIVATION))
 
     def call(self, inputs):
@@ -76,11 +87,11 @@ class FCBlock(keras.layers.Layer):
         super(FCBlock, self).__init__(name='fc-block')
         self.fc = []
         # stack FC Layers as a block
-        for _ in range(hypers.FC_LAYERS - 1):
+        for _ in range(hypers.hp.get('fc_layers') - 1):
             self.fc.append(keras.layers.Dense(
-                hypers.ATOM_FEATURE_SIZE, activation=hypers.FC_ACTIVATION))
+                hypers.hp.get('atom_feature_size'), activation=hypers.FC_ACTIVATION))
         self.fc.append(keras.layers.Dense(
-            hypers.ATOM_FEATURE_SIZE, activation="tanh"))
+            hypers.hp.get('atom_feature_size'), activation="tanh"))
 
     def call(self, nodes):
         for i in range(len(self.fc)):

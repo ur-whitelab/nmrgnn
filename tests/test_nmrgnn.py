@@ -1,4 +1,6 @@
 import tensorflow as tf
+from tensorflow import keras
+import kerastuner as kt
 import unittest
 import nmrgnn
 import numpy as np
@@ -42,16 +44,18 @@ class test_gnnhypers(unittest.TestCase):
 class test_edge_fc_block(unittest.TestCase):
 
     def test_edgeFCBlock_call(self):
+        hypers = nmrgnn.GNNHypers()
         edge_input = tf.ones((5, 2, 2))
-        edgeFCBlock = nmrgnn.EdgeFCBlock(nmrgnn.GNNHypers())
+        edgeFCBlock = nmrgnn.EdgeFCBlock(hypers)
         edge_output = edgeFCBlock(edge_input)
-        assert edge_output.shape[-1] == nmrgnn.GNNHypers().EDGE_FEATURE_SIZE
+        assert edge_output.shape[-1] == hypers.hp.get('edge_feature_size')
         assert edge_output.shape[:-1] == edge_input.shape[:-1]
 
 
 class test_mp_block(unittest.TestCase):
 
     def test_mpBlock_call(self):
+        hypers = nmrgnn.GNNHypers()
         nodes = tf.one_hot([2, 0, 1, 3, 3], 16)
         # neighbors ->  5 nodes, 2 neighbors
         nlist = np.zeros((5, 2), dtype=np.int)
@@ -65,7 +69,7 @@ class test_mp_block(unittest.TestCase):
         # make inv degree (each one has two connections)
         inv_degree = np.ones((5,)) / 2
         # shapes are specified inside the block
-        mp_block = nmrgnn.MPBlock(nmrgnn.GNNHypers())
+        mp_block = nmrgnn.MPBlock(hypers)
         out_nodes = mp_block([nodes, nlist, edges, inv_degree])
         assert out_nodes.shape == nodes.shape
 
@@ -73,16 +77,18 @@ class test_mp_block(unittest.TestCase):
 class test_fc_block(unittest.TestCase):
 
     def test_fcBlock_call(self):
+        hypers = nmrgnn.GNNHypers()
         nodes = tf.ones((5, 16))
-        fcBlock = nmrgnn.FCBlock(nmrgnn.GNNHypers())
+        fcBlock = nmrgnn.FCBlock(hypers)
         new_nodes = fcBlock(nodes)
-        assert new_nodes.shape[-1] == nmrgnn.GNNHypers().ATOM_FEATURE_SIZE
+        assert new_nodes.shape[-1] == hypers.hp.get('atom_feature_size')
         assert new_nodes.shape[:-1] == nodes.shape[:-1]
 
 
 class test_gnnmodel(unittest.TestCase):
 
     def test_gnnmodel_build(self):
+        hypers = nmrgnn.GNNHypers()
         nodes = tf.one_hot([2, 4, 1, 3, 3], 16)
         # neighbors -> 5 nodes, 2 neighbors
         nlist = np.zeros((5, 2), dtype=np.int)
@@ -102,7 +108,7 @@ class test_gnnmodel(unittest.TestCase):
         for i in range(16):
             ps[i] = ('F', 0, 1)
 
-        model = nmrgnn.GNNModel(nmrgnn.GNNHypers(), ps)
+        model = nmrgnn.GNNModel(hypers, ps)
         out_nodes = model(inputs)
         # one peak per atom
         assert out_nodes.shape == (nodes.shape[0],)
