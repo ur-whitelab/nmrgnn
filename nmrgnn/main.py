@@ -69,20 +69,24 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         save_best_only=True)
     callbacks.append(model_checkpoint_callback)
 
-    tuner = RandomSearch(
+    #model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
+
+    tuner = kt.tuners.randomsearch.RandomSearch(
         model,
         objective='val_loss',
         max_trials=10,
         executions_per_trial=3,
         directory='nmrgnn',
         project_name='nmrgnn')
-    #model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
+
     tuner.search(train_data,
         epochs=epochs,
         validation_data=validation_data)
 
     best_model = tuner.get_best_models()[0]
     best_model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
+
+    
 
 if __name__ == '__main__':
     train()
