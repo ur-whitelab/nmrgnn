@@ -5,7 +5,7 @@ import tensorflow as tf
 class MPLayer(keras.layers.Layer):
     def __init__(self, activation=None, name='MPLayer'):
         super(MPLayer, self).__init__(name=name)
-        self.activation = activation
+        self.activation = tf.keras.activations.get(activation)
 
     def build(self, input_shape):
         node_feature_shape, _, edge_feature_shape, _ = input_shape

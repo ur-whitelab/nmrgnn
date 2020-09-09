@@ -2,12 +2,25 @@ import click
 import nmrdata
 import tensorflow as tf
 import kerastuner as kt
-from .model import GNNModel, GNNHypers
+from .model import *
 
 
 @click.group()
 def main():
     pass
+
+
+def load_data(tfrecords, validation, embeddings):
+    # load data and split into train/validation
+    data = nmrdata.dataset(tfrecords, embeddings=embeddings).prefetch(
+        tf.data.experimental.AUTOTUNE)
+    data_size = len(list(data))
+    validation_size = int(validation * data_size)
+    validation_data, train_data = data.take(
+        validation_size).cache(), data.skip(validation_size).cache()
+    # shuffle train
+    train_data = train_data.shuffle(500, reshuffle_each_iteration=True)
+    return train_data, validation_data
 
 
 @main.command()
@@ -20,38 +33,7 @@ def main():
 def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard):
     '''Train the model'''
 
-    # load peak standards
-    standards = nmrdata.load_standards()
-
-    # load data and split into train/validation
-    data = nmrdata.dataset(tfrecords, embeddings=embeddings).prefetch(
-        tf.data.experimental.AUTOTUNE)
-    data_size = len(list(data))
-    validation_size = int(validation * data_size)
-    validation_data, train_data = data.take(
-        validation_size).cache(), data.skip(validation_size).cache()
-
-    # shuffle train
-    train_data = train_data.shuffle(500, reshuffle_each_iteration=True)
-
-    hypers = GNNHypers()
-
-    # Create a MirroredStrategy.
-    strategy = tf.distribute.MirroredStrategy()
-    print("Number of devices: {}".format(strategy.num_replicas_in_sync))
-
-    # Open a strategy scope.
-    with strategy.scope():
-    
-        model = GNNModel(hypers, standards)
-
-        # compile with MSLE (to treat vastly different label mags)
-        optimizer = tf.keras.optimizers.Adam(1e-4)
-        model.compile(optimizer=optimizer,
-                  loss='mean_squared_logarithmic_error',
-                  metrics=[tf.keras.metrics.MeanAbsoluteError()]
-                  )
-
+    model = build_GNNModel()
     callbacks = []
     # set-up learning rate scheduler
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
@@ -59,7 +41,8 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     callbacks.append(reduce_lr)
     # tensorboard
     if tensorboard is not None:
-        tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=tensorboard, write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(
+            log_dir=tensorboard, write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
         callbacks.append(tensorboard_callback)
     # save model
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
@@ -69,24 +52,54 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         save_best_only=True)
     callbacks.append(model_checkpoint_callback)
 
-    #model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
+    train_data, validation_data = load_data(tfrecords, validation, embeddings)
+    model.fit(train_data, epochs=epochs, callbacks=callbacks,
+              validation_data=validation_data)
 
-    tuner = kt.tuners.randomsearch.RandomSearch(
-        model,
+
+@main.command()
+@click.argument('tfrecords')
+@click.argument('epochs', default=3)
+@click.option('--tuning_path', default='tuning', help='where to save tuning information')
+@click.option('--embeddings', default=None, help='path to embeddings')
+@click.option('--validation', default=0.2, help='relative size of validation')
+@click.option('--tensorboard', default=None, help='path to tensorboard logs')
+def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
+    '''Tune hyperparameters the model'''
+
+    callbacks = []
+    # set-up learning rate scheduler
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        patience=2,
+        verbose=0,
+        restore_best_weights=True,
+    )
+
+    callbacks.append(early_stop)
+    # tensorboard
+    if tensorboard is not None:
+        print('Will write tensorboard summaries')
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(
+            log_dir=tensorboard, update_freq='epoch', write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
+        callbacks.append(tensorboard_callback)
+
+    train_data, validation_data = load_data(tfrecords, validation, embeddings)
+
+    tuner = kt.tuners.hyperband.Hyperband(
+        build_GNNModel,
         objective='val_loss',
-        max_trials=10,
+        max_epochs=epochs,
+        distribution_strategy=tf.distribute.MirroredStrategy(),
         executions_per_trial=3,
-        directory='nmrgnn',
-        project_name='nmrgnn')
+        directory=tuning_path,
+        project_name='gnn-tuning')
 
     tuner.search(train_data,
-        epochs=epochs,
-        validation_data=validation_data)
+                 validation_data=validation_data,
+                 callbacks=callbacks)
+    tuner.search_space_summary()
 
-    best_model = tuner.get_best_models()[0]
-    best_model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
-
-    
 
 if __name__ == '__main__':
-    train()
+    main()

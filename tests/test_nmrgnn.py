@@ -44,18 +44,20 @@ class test_gnnhypers(unittest.TestCase):
 class test_edge_fc_block(unittest.TestCase):
 
     def test_edgeFCBlock_call(self):
-        hypers = nmrgnn.GNNHypers()
+        model = nmrgnn.build_GNNModel()
+        hypers = model.hypers
         edge_input = tf.ones((5, 2, 2))
         edgeFCBlock = nmrgnn.EdgeFCBlock(hypers)
         edge_output = edgeFCBlock(edge_input)
-        assert edge_output.shape[-1] == hypers.hp.get('edge_feature_size')
+        assert edge_output.shape[-1] == hypers.get('edge_feature_size')
         assert edge_output.shape[:-1] == edge_input.shape[:-1]
 
 
 class test_mp_block(unittest.TestCase):
 
     def test_mpBlock_call(self):
-        hypers = nmrgnn.GNNHypers()
+        model = nmrgnn.build_GNNModel()
+        hypers = model.hypers
         nodes = tf.one_hot([2, 0, 1, 3, 3], 16)
         # neighbors ->  5 nodes, 2 neighbors
         nlist = np.zeros((5, 2), dtype=np.int)
@@ -77,18 +79,18 @@ class test_mp_block(unittest.TestCase):
 class test_fc_block(unittest.TestCase):
 
     def test_fcBlock_call(self):
-        hypers = nmrgnn.GNNHypers()
+        model = nmrgnn.build_GNNModel()
+        hypers = model.hypers
         nodes = tf.ones((5, 16))
         fcBlock = nmrgnn.FCBlock(hypers)
         new_nodes = fcBlock(nodes)
-        assert new_nodes.shape[-1] == hypers.hp.get('atom_feature_size')
+        assert new_nodes.shape[-1] == hypers.get('atom_feature_size')
         assert new_nodes.shape[:-1] == nodes.shape[:-1]
 
 
 class test_gnnmodel(unittest.TestCase):
 
     def test_gnnmodel_build(self):
-        hypers = nmrgnn.GNNHypers()
         nodes = tf.one_hot([2, 4, 1, 3, 3], 16)
         # neighbors -> 5 nodes, 2 neighbors
         nlist = np.zeros((5, 2), dtype=np.int)
@@ -108,7 +110,7 @@ class test_gnnmodel(unittest.TestCase):
         for i in range(16):
             ps[i] = ('F', 0, 1)
 
-        model = nmrgnn.GNNModel(hypers, ps)
+        model = nmrgnn.build_GNNModel()
         out_nodes = model(inputs)
         # one peak per atom
         assert out_nodes.shape == (nodes.shape[0],)
