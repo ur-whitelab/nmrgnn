@@ -5,6 +5,7 @@ import kerastuner as kt
 import os
 import nmrdata
 from .layers import *
+from .losses import *
 
 # An object stores model hyper parameters
 
@@ -32,8 +33,9 @@ def build_GNNModel(hp=kt.HyperParameters()):
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
         hp.Choice('learning_rate', [5e-3, 1e-4, 1e-5], default=1e-4))
+    loss = MeanSquaredLogartihmicErrorNames()
     model.compile(optimizer=optimizer,
-                  loss='mean_squared_logarithmic_error',
+                  loss=loss,
                   metrics=[tf.keras.metrics.MeanAbsoluteError()]
                   )
     return model

@@ -12,7 +12,7 @@ def main():
 
 def load_data(tfrecords, validation, embeddings):
     # load data and split into train/validation
-    data = nmrdata.dataset(tfrecords, embeddings=embeddings).prefetch(
+    data = nmrdata.dataset(tfrecords, embeddings=embeddings, label_info=True).prefetch(
         tf.data.experimental.AUTOTUNE)
     data_size = len(list(data))
     validation_size = int(validation * data_size)
