@@ -88,6 +88,28 @@ class test_fc_block(unittest.TestCase):
         assert new_nodes.shape[:-1] == nodes.shape[:-1]
 
 
+class TestMetrics(unittest.TestCase):
+
+    def test_name_mae(self):
+        embeddings = {'name': {'ALA-N': 4, 'GLU-N': 2, 'GLU-H': 3}}
+        nm = nmrgnn.NameMAE('.*\-H', embeddings, regex=True)
+        y = (tf.ones((5,)), tf.constant([4, 3, 3, 2, 4]))
+        y_pred = tf.zeros((5,))
+        nm.update_state(y, y_pred)
+        assert nm.result() == 2
+
+        nm = nmrgnn.NameMAE('GLU-H', embeddings, regex=False)
+        nm.update_state(y, y_pred)
+        assert nm.result() == 2
+
+        nm = nmrgnn.NameMAE('GLU\-.*', embeddings, regex=True)
+        nm.update_state(y, y_pred)
+        assert nm.result() == 3
+
+        with self.assertRaises(ValueError):
+            nm = nmrgnn.NameMAE('LYS\-.*', embeddings, regex=True)
+
+
 class test_gnnmodel(unittest.TestCase):
 
     def test_gnnmodel_build(self):

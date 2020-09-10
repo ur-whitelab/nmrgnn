@@ -70,9 +70,10 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     callbacks = []
     # set-up learning rate scheduler
     early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss',
+        monitor='val_ha_mae',
         patience=2,
         verbose=0,
+        mode='min',
         restore_best_weights=True,
     )
 
@@ -88,7 +89,7 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
 
     tuner = kt.tuners.hyperband.Hyperband(
         build_GNNModel,
-        objective='val_loss',
+        objective=kt.Objective('val_ha_mae', direction='min'),
         max_epochs=epochs,
         distribution_strategy=tf.distribute.MirroredStrategy(),
         executions_per_trial=3,

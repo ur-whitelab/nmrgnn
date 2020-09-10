@@ -6,6 +6,7 @@ import os
 import nmrdata
 from .layers import *
 from .losses import *
+from .metrics import *
 
 # An object stores model hyper parameters
 
@@ -34,9 +35,31 @@ def build_GNNModel(hp=kt.HyperParameters()):
     optimizer = tf.keras.optimizers.Adam(
         hp.Choice('learning_rate', [5e-3, 1e-4, 1e-5], default=1e-4))
     loss = MeanSquaredLogartihmicErrorNames()
+    embeddings = nmrdata.load_embeddings()
+    h_mae = NameMAE('.*\-H.*', embeddings, regex=True, name='h_mae')
+    n_mae = NameMAE('.*\-N.*', embeddings, regex=True, name='n_mae')
+    c_mae = NameMAE('.*\-C.*', embeddings, regex=True, name='c_mae')
+    hn_mae = NameMAE('.*\-H', embeddings, regex=True, name='hn_mae')
+    ha_mae = NameMAE('.*\-HA', embeddings, regex=True, name='ha_mae')
+    h_r2 = NameR2('.*\-H.*', embeddings, regex=True, name='h_r2')
+    n_r2 = NameR2('.*\-N.*', embeddings, regex=True, name='n_r2')
+    c_r2 = NameR2('.*\-C.*', embeddings, regex=True, name='c_r2')
+    hn_r2 = NameR2('.*\-H', embeddings, regex=True, name='hn_r2')
+    ha_r2 = NameR2('.*\-HA', embeddings, regex=True, name='ha_r2')
     model.compile(optimizer=optimizer,
                   loss=loss,
-                  metrics=[tf.keras.metrics.MeanAbsoluteError()]
+                  metrics=[
+                      h_mae,
+                      n_mae,
+                      c_mae,
+                      hn_mae,
+                      ha_mae,
+                      h_r2,
+                      n_r2,
+                      c_r2,
+                      hn_r2,
+                      ha_r2
+                  ]
                   )
     return model
 
