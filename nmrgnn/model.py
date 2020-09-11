@@ -22,9 +22,9 @@ def build_GNNModel(hp=kt.HyperParameters()):
     hp.Fixed('rbf_low', 0.01)
     hp.Fixed('rbf_high', 0.12)
     hp.Choice('mp_activation', [
-        'relu', 'softplus'])
+        'relu', 'softplus'], default='relu')
     hp.Choice('fc_activation', [
-        'relu', 'softplus'])
+        'relu', 'softplus'], default='relu')
 
     # load peak standards
     standards = nmrdata.load_standards()

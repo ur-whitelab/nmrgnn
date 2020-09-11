@@ -26,18 +26,24 @@ def load_data(tfrecords, validation, embeddings):
 @main.command()
 @click.argument('tfrecords')
 @click.argument('epochs', default=3)
-@click.option('--checkpoint_path', default='/tmp/checkpoint', help='where to save model')
+@click.option('--checkpoint-path', default='/tmp/checkpoint', help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
 @click.option('--validation', default=0.2, help='relative size of validation')
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
-def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard):
+@click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
+def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load):
     '''Train the model'''
 
-    model = build_GNNModel()
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        if load:
+            loaded_model = tf.keras.models.load_model(checkpoint_path)
+        else:
+            model = build_GNNModel()
     callbacks = []
     # set-up learning rate scheduler
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
-                                                     patience=4, min_lr=1e-6)
+                                                     patience=4, min_lr=1e-6, verbose=1)
     callbacks.append(reduce_lr)
     # tensorboard
     if tensorboard is not None:
@@ -71,7 +77,7 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     # set-up learning rate scheduler
     early_stop = tf.keras.callbacks.EarlyStopping(
         monitor='val_loss',
-        patience=2,
+        patience=4,
         verbose=0,
         mode='min',
         restore_best_weights=False,
