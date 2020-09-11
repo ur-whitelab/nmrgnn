@@ -37,7 +37,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         if load:
-            loaded_model = tf.keras.models.load_model(checkpoint_path)
+            model = tf.keras.models.load_model(checkpoint_path)
         else:
             model = build_GNNModel()
     callbacks = []
@@ -55,12 +55,13 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         filepath=checkpoint_path,
         save_weights_only=False,
         monitor='val_loss',
-        save_best_only=True)
+        save_best_only=False)
     callbacks.append(model_checkpoint_callback)
 
     train_data, validation_data = load_data(tfrecords, validation, embeddings)
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data)
+    model.save(checkpoint_path)
 
 
 @main.command()

@@ -3,8 +3,8 @@ import tensorflow as tf
 
 
 class MPLayer(keras.layers.Layer):
-    def __init__(self, activation=None, name='MPLayer'):
-        super(MPLayer, self).__init__(name=name)
+    def __init__(self, activation=None, name='MPLayer', **kwargs):
+        super(MPLayer, self).__init__(name=name, **kwargs)
         self.activation = tf.keras.activations.get(activation)
 
     def build(self, input_shape):
@@ -15,6 +15,12 @@ class MPLayer(keras.layers.Layer):
             trainable=True,
             name='w'
         )
+
+    def get_config(self):
+        config = super(MPLayer, self).get_config()
+        config.update(
+            {'activation': self.activation})
+        return config
 
     def call(self, inputs):
         # node ->  N x node_feature
@@ -31,10 +37,7 @@ class MPLayer(keras.layers.Layer):
         # m -> atom atom feature output
         reduced = tf.einsum('ijn,ijl,lmn,i->im', edges,
                             sliced_features, self.w, inv_degree)
-        if self.activation is not None:
-            out = self.activation(reduced)
-        else:
-            out = reduced
+        out = self.activation(reduced)
         # output -> N x D number of atoms x node feature dimension
         return out
 
@@ -49,7 +52,7 @@ class RBFExpansion(tf.keras.layers.Layer):
     elements is :math:`1 / \gamma`.
     '''
 
-    def __init__(self, low, high, count):
+    def __init__(self, low, high, count, name='rbf-layer', **kwargs):
         R'''
         :param low: lowest :math:`\mu`
         :type low: float
@@ -58,11 +61,21 @@ class RBFExpansion(tf.keras.layers.Layer):
         :param count: Number of elements in :math:`\mu` and output last axis dimension
         :type count: int
         '''
-        super(RBFExpansion, self).__init__(name='rbf-layer')
+        super(RBFExpansion, self).__init__(name=name, **kwargs)
         self.low = low
         self.high = high
-        self.centers = tf.cast(tf.linspace(low, high, count), dtype=tf.float32)
+        self.count = count
+
+    def build(self, input_shape):
+        self.centers = tf.cast(tf.linspace(
+            self.low, self.high, self.count), dtype=tf.float32)
         self.gap = self.centers[1] - self.centers[0]
+
+    def get_config(self):
+        config = super(RBFExpansion, self).get_config()
+        config.update(
+            {'low': self.low, 'high': self.high, 'count': self.count})
+        return config
 
     def call(self, inputs):
         rbf = tf.math.exp(-(inputs[..., tf.newaxis] -
