@@ -158,6 +158,7 @@ class TestSerialize(unittest.TestCase):
         out_nodes = model(inputs)
         try:
             model.save('gnn_model_load_test')
+            del model
             tf.keras.models.load_model(
                 'gnn_model_load_test', custom_objects=nmrgnn.custom_objects)
         finally:
@@ -165,6 +166,13 @@ class TestSerialize(unittest.TestCase):
 
 
 class test_gnnmodel(unittest.TestCase):
+
+    def test_loss(self):
+        y = (tf.zeros((5,)), tf.constant([4., 3, 3, 2, 4]))
+        y = tf.stack([*y], axis=1)
+        y_true = tf.ones(5,)
+        loss = nmrgnn.MeanSquaredLogartihmicErrorNames()
+        loss(y, y_true)
 
     def test_gnnmodel_build(self):
         nodes = tf.one_hot([2, 4, 1, 3, 3], 16)

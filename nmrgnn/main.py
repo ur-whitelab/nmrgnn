@@ -2,7 +2,7 @@ import click
 import nmrdata
 import tensorflow as tf
 import kerastuner as kt
-from .model import *
+import nmrgnn
 
 
 @click.group()
@@ -36,10 +36,9 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
 
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
+        model = nmrgnn.build_GNNModel()
         if load:
-            model = tf.keras.models.load_model(checkpoint_path)
-        else:
-            model = build_GNNModel()
+            model.load_weights(checkpoint_path)
     callbacks = []
     # set-up learning rate scheduler
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
@@ -53,7 +52,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     # save model
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_path,
-        save_weights_only=False,
+        save_weights_only=True,
         monitor='val_loss',
         save_best_only=False)
     callbacks.append(model_checkpoint_callback)
@@ -61,7 +60,6 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     train_data, validation_data = load_data(tfrecords, validation, embeddings)
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data)
-    model.save(checkpoint_path)
 
 
 @main.command()
@@ -95,7 +93,7 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     train_data, validation_data = load_data(tfrecords, validation, embeddings)
 
     tuner = kt.tuners.hyperband.Hyperband(
-        build_GNNModel,
+        nmrgnn.build_GNNModel,
         objective=kt.Objective('val_loss', direction='min'),
         max_epochs=epochs,
         distribution_strategy=tf.distribute.MirroredStrategy(),

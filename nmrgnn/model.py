@@ -34,7 +34,7 @@ def build_GNNModel(hp=kt.HyperParameters()):
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
         hp.Choice('learning_rate', [5e-3, 1e-4, 1e-5], default=1e-4))
-    loss = call_mlse
+    loss = MeanSquaredLogartihmicErrorNames()
     embeddings = nmrdata.load_embeddings()
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_mae = NameMAE(label_idx, name='h_mae')

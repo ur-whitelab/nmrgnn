@@ -24,12 +24,13 @@ class NameMAE(tf.keras.metrics.Metric):
 
     def __init__(self, label_idx, name='name-specific-loss', **kwargs):
         super(NameMAE, self).__init__(name=name, **kwargs)
-        self.mae = self.add_weight(name='MAE', initializer='zeros')
+        self.mae = self.add_weight(name='MAE', initializer='zeros', shape=())
+        self.label_idx = label_idx
         self.ln = np.array(label_idx, dtype=np.int32)
 
     def get_config(self):
         config = super(NameMAE, self).get_config()
-        config.update({'label_idx': self.ln})
+        config.update({'label_idx': self.label_idx})
         return config
 
     def update_state(self, y_true, y_pred, sample_weight=None):
@@ -55,12 +56,13 @@ class NameR2(tf.keras.metrics.Metric):
 
     def __init__(self, label_idx, name='name-specific-r2', **kwargs):
         super(NameR2, self).__init__(name=name, **kwargs)
-        self.mae = self.add_weight(name='MAE', initializer='zeros')
+        self.r2 = self.add_weight(name='R2', initializer='zeros', shape=())
+        self.label_idx = label_idx
         self.ln = np.array(label_idx, dtype=np.int32)
 
     def get_config(self):
         config = super(NameR2, self).get_config()
-        config.update({'label_idx': self.ln})
+        config.update({'label_idx': self.label_idx})
         return config
 
     def update_state(self, y_true, y_pred, sample_weight=None):
