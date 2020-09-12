@@ -96,6 +96,7 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
         nmrgnn.build_GNNModel,
         objective=kt.Objective('val_loss', direction='min'),
         max_epochs=epochs,
+        hyperband_iterations=3,
         distribution_strategy=tf.distribute.MirroredStrategy(),
         executions_per_trial=3,
         directory=tuning_path,
@@ -104,8 +105,18 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     tuner.search(train_data,
                  validation_data=validation_data,
                  callbacks=callbacks)
-    tuner.search_space_summary()
+    tuner.results_summary()
 
+    best_hps = tuner.get_best_hyperparameters(num_trials = 1)[0]
+    model = tuner.hypermodel.build(best_hps)
 
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
+                                                     patience=4, min_lr=1e-6, verbose=1)
+    callbacks = [reduce_lr]
+
+    model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
+    
+
+    
 if __name__ == '__main__':
     main()

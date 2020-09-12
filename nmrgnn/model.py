@@ -12,15 +12,15 @@ from .metrics import *
 
 
 def build_GNNModel(hp=kt.HyperParameters()):
-    hp.Int('atom_feature_size', 32, 256, step=32, default=256)
-    hp.Int('edge_feature_size', 1, 16, step=4, default=4)
-    hp.Int('edge_hidden_size', 16, 256, step=16, default=64)
+    hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=64)
+    hp.Choice('edge_feature_size', [1, 2, 4, 8, 16, 32], ordered=True, default=16)
+    hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
     hp.Int('mp_layers', 1, 6, step=1, default=4)
     hp.Int('fc_layers', 2, 6, step=1, default=3)
-    hp.Int('edge_fc_layers', 2, 6, step=1, default=2)
-    hp.Choice('noise', [0.0, 0.01, 0.02, 0.05], ordered=True, default=0.02)
-    hp.Fixed('rbf_low', 0.01)
-    hp.Fixed('rbf_high', 0.12)
+    hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
+    hp.Choice('noise', [0.0, 0.005, 0.01, 0.02, 0.05], ordered=True, default=0.02)
+    hp.Fixed('rbf_low', 0.005)
+    hp.Fixed('rbf_high', 0.15)
     hp.Choice('mp_activation', [
         'relu', 'softplus'], default='relu')
     hp.Choice('fc_activation', [
