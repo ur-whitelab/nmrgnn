@@ -171,6 +171,7 @@ class GNNModel(keras.Model):
         self.fc_block = FCBlock(hypers)
         self.noise_block = tf.keras.layers.GaussianNoise(hypers.get('noise'))
         self.hypers = hypers
+        self.embed_dim = hypers.get('atom_feature_size')
         # we will use peak_standards now (large) and cut down later
         # This is because saving peak_standards is probelmatic
         LOTS_OF_ELEMENTS = 100
@@ -191,6 +192,8 @@ class GNNModel(keras.Model):
         # get number of elements
         num_elem = input_shapes[0][-1]
         self.out_layer = tf.keras.layers.Dense(num_elem)
+        # they are already one-hots, so no need to use proper embedding
+        self.embed_layer = tf.keras.layers.Dense(self.embed_dim, use_bias = False)
         self.peak_std = self.peak_std[:num_elem]
         self.peak_avg = self.peak_avg[:num_elem]
 
@@ -211,7 +214,8 @@ class GNNModel(keras.Model):
         # want to preserve zeros in input
         # so multiply here by mask (!)
         edge_embeded *= edge_mask
-        mp_inputs = [node_input, nlist_input, edge_embeded, inv_degree]
+        node_embed = self.embed_layer(node_input)
+        mp_inputs = [node_embed, nlist_input, edge_embeded, inv_degree]
         semi_nodes = self.mp_block(mp_inputs)
         out_nodes = self.fc_block(semi_nodes)
         full_peaks = self.out_layer(out_nodes)

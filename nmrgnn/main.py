@@ -3,6 +3,7 @@ import nmrdata
 import tensorflow as tf
 import kerastuner as kt
 import nmrgnn
+import pandas as pd
 
 
 @click.group()
@@ -61,62 +62,91 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data)
 
-
 @main.command()
 @click.argument('tfrecords')
 @click.argument('epochs', default=3)
-@click.option('--tuning_path', default='tuning', help='where to save tuning information')
+@click.option('--checkpoint-path', default='/tmp/checkpoint', help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
 @click.option('--validation', default=0.2, help='relative size of validation')
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
-def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
-    '''Tune hyperparameters the model'''
+@click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
+def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load):
+    '''Train the model'''
 
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        model = nmrgnn.build_GNNModel()
+        if load:
+            model.load_weights(checkpoint_path)
     callbacks = []
     # set-up learning rate scheduler
-    early_stop = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss',
-        patience=4,
-        verbose=0,
-        mode='min',
-        restore_best_weights=False,
-    )
-
-    callbacks.append(early_stop)
-    # tensorboard
-    if tensorboard is not None:
-        print('Will write tensorboard summaries')
-        tensorboard_callback = tf.keras.callbacks.TensorBoard(
-            log_dir=tensorboard, update_freq='epoch', write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
-        callbacks.append(tensorboard_callback)
-
-    train_data, validation_data = load_data(tfrecords, validation, embeddings)
-
-    tuner = kt.tuners.hyperband.Hyperband(
-        nmrgnn.build_GNNModel,
-        objective=kt.Objective('val_loss', direction='min'),
-        max_epochs=epochs,
-        hyperband_iterations=3,
-        distribution_strategy=tf.distribute.MirroredStrategy(),
-        executions_per_trial=3,
-        directory=tuning_path,
-        project_name='gnn-tuning')
-
-    tuner.search(train_data,
-                 validation_data=validation_data,
-                 callbacks=callbacks)
-    tuner.results_summary()
-
-    best_hps = tuner.get_best_hyperparameters(num_trials = 1)[0]
-    model = tuner.hypermodel.build(best_hps)
-
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
                                                      patience=4, min_lr=1e-6, verbose=1)
-    callbacks = [reduce_lr]
+    callbacks.append(reduce_lr)
+    # tensorboard
+    if tensorboard is not None:
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(
+            log_dir=tensorboard, write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
+        callbacks.append(tensorboard_callback)
+    # save model
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_path,
+        save_weights_only=True,
+        monitor='val_loss',
+        save_best_only=False)
+    callbacks.append(model_checkpoint_callback)
 
-    model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)
+    train_data, validation_data = load_data(tfrecords, validation, embeddings)
+    model.fit(train_data, epochs=epochs, callbacks=callbacks,
+              validation_data=validation_data)
+
+
+
+@main.command()
+@click.argument('tfrecords')
+@click.argument('checkpoint')
+@click.argument('output')
+@click.option('--validation', default=0.0, help='relative size of validation. If non-zero, only validation will be saved')
+def eval_tfrecords(tfrecords, checkpoint, validation, output):
+    '''Tune hyperparameters the model'''    
     
-
+    model = nmrgnn.build_GNNModel()
+    model.load_weights(checkpoint)
+    train_data, validation_data = load_data(tfrecords, validation, None)
+    if validation > 0:
+        data = validation_data
+    else:
+        data = train_data
+    embeddings = nmrdata.load_embeddings()
+    print('Computing...')
+    element = []
+    prediction = []
+    shift = []
+    name = []
+    class_name = []
+    count = 0
+    rev_names = {v: k for k,v in embeddings['name'].items()}
+    for x,y,w in data:
+        # get predictions
+        yhat = model(x)
+        ytrue = y[:, 0]
+        namei = y[:,1]#tf.cast(y[:,1], tf.int32)
+        name.extend([rev_names[int(n)].split('-')[1] for wi,n in zip(w, namei) if wi > 0])
+        class_name.extend([rev_names[int(n)].split('-')[0] for wi,n in zip(w, namei) if wi > 0])
+        element.extend([rev_names[int(n)].split('-')[1][0] for wi,n in zip(w, namei) if wi > 0])
+        prediction.extend([float(yi) for wi,yi in zip(w, yhat) if wi > 0])
+        shift.extend([float(yi) for wi,yi in zip(w, ytrue) if wi > 0])
+        count += 1
+        break
+        print(f'\rComputing...{count}')
+    out = pd.DataFrame({
+        'element': element,
+        'y': shift,
+        'yhat': prediction,
+        'class': class_name,
+        'name': name
+    })
+    out.to_csv(f'{output}.csv', index=False)
     
 if __name__ == '__main__':
     main()
