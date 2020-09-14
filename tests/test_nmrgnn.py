@@ -201,3 +201,4 @@ class test_gnnmodel(unittest.TestCase):
 
         out_nodes = model(inputs)
         assert out_nodes.shape == (nodes.shape[0],)
+        

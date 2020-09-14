@@ -9,6 +9,6 @@ from .metrics import *
 from .losses import *
 
 custom_things = [MeanSquaredLogartihmicErrorNames, NameMAE, NameR2, MPLayer,
-                 RBFExpansion, EdgeFCBlock, MPBlock, FCBlock]
+                 RBFExpansion, EdgeFCBlock, MPBlock, FCBlock, corr_loss]
 custom_objects = {o.__name__: o for o in custom_things}
 del custom_things

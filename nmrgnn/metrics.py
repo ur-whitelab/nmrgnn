@@ -38,9 +38,13 @@ class NameMAE(tf.keras.metrics.Metric):
         mask = tf.cast(tf.reduce_any(
             tf.equal(tf.cast(y_true[:, 1][..., tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
         diff = tf.math.abs(y_true[:, 0] - y_pred) * mask
-        if sample_weight is not None:
-            mask *= sample_weight
-            diff *= sample_weight
+        if sample_weight is None:
+            # make it non-zero labels
+            sample_weight = tf.cast(y_true[:,0] > 0, tf.float32)
+
+        mask *= sample_weight
+        diff *= sample_weight
+            
         N = tf.reduce_sum(mask)
         self.mae.assign(tf.reduce_sum(diff) / N)
 
@@ -69,8 +73,10 @@ class NameR2(tf.keras.metrics.Metric):
         # mask diff by which predictions match the label
         mask = tf.cast(tf.reduce_any(
             tf.equal(tf.cast(y_true[:, 1][..., tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
-        if sample_weight is not None:
-            mask *= sample_weight
+        if sample_weight is None:
+            # make it non-zero labels
+            sample_weight = tf.cast(y_true[:,0] > 0, tf.float32)
+        mask *= sample_weight
         r = NameR2.corr_coeff(y_true[:, 0], y_pred, mask)
         self.r2.assign(r**2)
 

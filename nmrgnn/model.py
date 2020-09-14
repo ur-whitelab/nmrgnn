@@ -11,7 +11,7 @@ from .metrics import *
 # An object stores model hyper parameters
 
 
-def build_GNNModel(hp=kt.HyperParameters()):
+def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
     hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=64)
     hp.Choice('edge_feature_size', [1, 2, 4, 8, 16, 32], ordered=True, default=16)
     hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
@@ -33,8 +33,8 @@ def build_GNNModel(hp=kt.HyperParameters()):
 
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
-        hp.Choice('learning_rate', [5e-3, 1e-4, 1e-5], default=1e-4))
-    loss = MeanSquaredLogartihmicErrorNames()
+        hp.Choice('learning_rate', [1e-3, 5e-3, 1e-4, 1e-5], default=1e-3))
+    loss = corr_loss
     embeddings = nmrdata.load_embeddings()
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_mae = NameMAE(label_idx, name='h_mae')
@@ -44,7 +44,7 @@ def build_GNNModel(hp=kt.HyperParameters()):
     c_mae = NameMAE(label_idx, name='c_mae')
     label_idx = type_mask(r'.*\-H', embeddings, regex=True)
     hn_mae = NameMAE(label_idx, name='hn_mae')
-    label_idx = type_mask(r'.*\-HA', embeddings, regex=True)
+    label_idx = type_mask(r'.*\-HA*', embeddings, regex=True)
     ha_mae = NameMAE(label_idx, name='ha_mae')
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_r2 = NameR2(label_idx, name='h_r2')
@@ -54,7 +54,7 @@ def build_GNNModel(hp=kt.HyperParameters()):
     c_r2 = NameR2(label_idx, name='c_r2')
     label_idx = type_mask(r'.*\-H', embeddings, regex=True)
     hn_r2 = NameR2(label_idx, name='hn_r2')
-    label_idx = type_mask(r'.*\-HA', embeddings, regex=True)
+    label_idx = type_mask(r'.*\-HA*', embeddings, regex=True)
     ha_r2 = NameR2(label_idx, name='ha_r2')
     model.compile(optimizer=optimizer,
                   loss=loss,
@@ -69,7 +69,7 @@ def build_GNNModel(hp=kt.HyperParameters()):
                       c_r2,
                       hn_r2,
                       ha_r2
-                  ]
+                  ] if metrics else None
                   )
     return model
 
@@ -197,7 +197,7 @@ class GNNModel(keras.Model):
         self.peak_std = self.peak_std[:num_elem]
         self.peak_avg = self.peak_avg[:num_elem]
 
-    def call(self, inputs, training=None):
+    def call(self, inputs, training=False):
         # node_input should be 1 hot!
         # as written here, edge input is distance ONLY
         # modify if you want to include type informaton
@@ -219,7 +219,9 @@ class GNNModel(keras.Model):
         semi_nodes = self.mp_block(mp_inputs)
         out_nodes = self.fc_block(semi_nodes)
         full_peaks = self.out_layer(out_nodes)
-
-        peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
+        if training:
+            peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
+        else:
+            peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
                               node_input * self.peak_avg, axis=-1)
         return peaks
