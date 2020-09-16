@@ -40,13 +40,13 @@ class NameMAE(tf.keras.metrics.Metric):
         diff = tf.math.abs(y_true[:, 0] - y_pred) * mask
         if sample_weight is None:
             # make it non-zero labels
-            sample_weight = tf.cast(y_true[:,0] > 0, tf.float32)
+            sample_weight = tf.cast(tf.math.abs(y_true[:,0]) > 1e-10, tf.float32)
 
         mask *= sample_weight
         diff *= sample_weight
             
         N = tf.reduce_sum(mask)
-        self.mae.assign(tf.reduce_sum(diff) / N)
+        self.mae.assign(tf.math.divide_no_nan(tf.reduce_sum(diff), N))
 
     def result(self):
         return self.mae
@@ -75,10 +75,10 @@ class NameR2(tf.keras.metrics.Metric):
             tf.equal(tf.cast(y_true[:, 1][..., tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
         if sample_weight is None:
             # make it non-zero labels
-            sample_weight = tf.cast(y_true[:,0] > 0, tf.float32)
+            sample_weight = tf.cast(tf.math.abs(y_true[:,0]) > 1e-10, tf.float32)
         mask *= sample_weight
-        r = NameR2.corr_coeff(y_true[:, 0], y_pred, mask)
-        self.r2.assign(r**2)
+        r2 = NameR2.corr_coeff(y_true[:, 0], y_pred, mask)
+        self.r2.assign(r2)
 
     def result(self):
         return self.r2
@@ -87,7 +87,7 @@ class NameR2(tf.keras.metrics.Metric):
         self.r2.assign(0)
 
     @staticmethod
-    def corr_coeff(x, y, w=None):
+    def corr_coeff(x, y, w = None):
         if w is None:
             w = tf.ones_like(x)
         m = tf.reduce_sum(w)
@@ -95,6 +95,6 @@ class NameR2(tf.keras.metrics.Metric):
         ym = tf.reduce_sum(w * y) / m
         xm2 = tf.reduce_sum(w * x**2) / m
         ym2 = tf.reduce_sum(w * y**2) / m
-        cov = tf.reduce_sum(w * (x - xm) * (y - ym)) / m
-        cor = cov / tf.math.sqrt((xm2 - xm**2) * (ym2 - ym**2))
+        cov = tf.reduce_sum( w * (x - xm) * (y - ym) ) / m
+        cor = tf.math.divide_no_nan(cov, tf.math.sqrt((xm2 - xm**2) * (ym2 - ym**2)))
         return cor

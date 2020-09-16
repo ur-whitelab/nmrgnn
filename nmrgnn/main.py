@@ -23,8 +23,8 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
     nodes = x[0]
     new_labels = tf.math.divide_no_nan(
         labels - tf.reduce_sum(nodes * peak_avg, axis=1),
-        tf.reduce_sum(nodes * peak_std, axis=1))
-    return x, tf.stack([new_labels, y[:, 1]], axis=1), w
+        tf.reduce_sum(nodes * peak_std, axis=1))     
+    return x, tf.stack([w * new_labels, y[:, 1]], axis=1), w
 
 
 
@@ -64,6 +64,9 @@ def load_data(tfrecords, validation, embeddings, scale=False):
 def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load):
     '''Train the model'''
 
+    #tf.debugging.enable_check_numerics()
+
+
     strategy = tf.distribute.MirroredStrategy()
     with strategy.scope():
         model = nmrgnn.build_GNNModel()
@@ -71,8 +74,8 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
             model.load_weights(checkpoint_path)
     callbacks = []
     # set-up learning rate scheduler
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
-                                                     patience=4, min_lr=1e-6, verbose=1)
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+                                                     patience=10, min_lr=1e-6, verbose=1)
     callbacks.append(reduce_lr)
     # tensorboard
     if tensorboard is not None:
@@ -87,7 +90,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         save_best_only=False)
     callbacks.append(model_checkpoint_callback)
 
-    train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=True)
+    train_data, validation_data = load_data(tfrecords, validation, embeddings)
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data)
 

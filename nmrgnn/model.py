@@ -33,7 +33,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
-        hp.Choice('learning_rate', [1e-3, 5e-3, 1e-4, 1e-5], default=1e-3))
+        hp.Choice('learning_rate', [1e-2, 1e-3, 5e-3, 1e-4, 1e-5], default=1e-4))
     loss = corr_loss
     embeddings = nmrdata.load_embeddings()
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
@@ -219,9 +219,9 @@ class GNNModel(keras.Model):
         semi_nodes = self.mp_block(mp_inputs)
         out_nodes = self.fc_block(semi_nodes)
         full_peaks = self.out_layer(out_nodes)
-        if training:
-            peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
-        else:
-            peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
+        #if training:
+        #    peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
+        #else:
+        peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
                               node_input * self.peak_avg, axis=-1)
         return peaks
