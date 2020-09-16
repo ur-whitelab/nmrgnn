@@ -8,17 +8,16 @@ from .layers import *
 from .losses import *
 from .metrics import *
 
-# An object stores model hyper parameters
-
 
 def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
-    hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=64)
-    hp.Choice('edge_feature_size', [1, 2, 4, 8, 16, 32], ordered=True, default=16)
+    '''Build model with hyper parameter object'''
+    hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=128)
+    hp.Choice('edge_feature_size', [1, 2, 4, 8, 16], ordered=True, default=4)
     hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
     hp.Int('mp_layers', 1, 6, step=1, default=4)
     hp.Int('fc_layers', 2, 6, step=1, default=3)
     hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
-    hp.Choice('noise', [0.0, 0.005, 0.01, 0.02, 0.05], ordered=True, default=0.02)
+    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
     hp.Fixed('rbf_low', 0.005)
     hp.Fixed('rbf_high', 0.15)
     hp.Choice('mp_activation', [
@@ -33,7 +32,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
-        hp.Choice('learning_rate', [1e-2, 1e-3, 5e-3, 1e-4, 1e-5], default=1e-4))
+        hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5], default=1e-3))
     loss = corr_loss
     embeddings = nmrdata.load_embeddings()
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
@@ -52,9 +51,9 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
     n_r2 = NameR2(label_idx, name='n_r2')
     label_idx = type_mask(r'.*\-C.*', embeddings, regex=True)
     c_r2 = NameR2(label_idx, name='c_r2')
-    label_idx = type_mask(r'.*\-H', embeddings, regex=True)
+    label_idx = type_mask(r'.*\-H$', embeddings, regex=True)
     hn_r2 = NameR2(label_idx, name='hn_r2')
-    label_idx = type_mask(r'.*\-HA*', embeddings, regex=True)
+    label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
     ha_r2 = NameR2(label_idx, name='ha_r2')
     model.compile(optimizer=optimizer,
                   loss=loss,
@@ -80,9 +79,17 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 class EdgeFCBlock(keras.layers.Layer):
     def __init__(self, hypers):
         super(EdgeFCBlock, self).__init__(name='edge-fc-block')
-        self.edge_fc = []
+        
+        # add l1 regularizer to 
+        # input, so that we 
+        # zero-out unused distance features
+        self.edge_fc = [keras.layers.Dense(
+            hypers.get('edge_hidden_size'), 
+            activation=hypers.get('fc_activation'),
+            kernel_regularizer='l1'
+        )]
         # stack Dense Layers as a block
-        for _ in range(hypers.get('edge_fc_layers') - 1):
+        for _ in range(hypers.get('edge_fc_layers') - 2):
             self.edge_fc.append(keras.layers.Dense(
                 hypers.get('edge_hidden_size'), activation=hypers.get('fc_activation')))
         # activation function for the last layer is 'tanh'

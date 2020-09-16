@@ -18,16 +18,14 @@ def corr_coeff(x, y, w = None):
     cor = tf.math.divide_no_nan(cov, m * tf.math.sqrt((xm2 - xm**2) * (ym2 - ym**2)))
     return cor
 
-def corr_loss(labels, predictions, sample_weight = None, s=1e-3):
+def corr_loss(labels, predictions, sample_weight = None, s=1e-2):
     '''
     Mostly correlation, with small squared diff
     '''
     x = predictions
     y = labels[:,0]
-    if sample_weight is None:
-        # make it non-zero labels
-        sample_weight = tf.cast(tf.math.abs(y) > 1e-10, tf.float32)
-    l2 = tf.math.divide_no_nan(tf.reduce_sum( sample_weight * tf.math.abs( y - x) ), tf.reduce_sum(sample_weight))
-    return l2# + (1 - corr_coeff(x, y, sample_weight))
+    w = labels[:,-1]
+    l2 = tf.math.divide_no_nan(tf.reduce_sum( w * tf.math.abs( y - x) ), tf.reduce_sum(w))
+    return s * l2 + (1 - corr_coeff(x, y, w)**2)
 
 

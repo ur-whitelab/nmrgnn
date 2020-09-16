@@ -53,6 +53,18 @@ def load_data(tfrecords, validation, embeddings, scale=False):
     return train_data, validation_data
 
 
+def setup_optimizations():
+    #tf.debugging.enable_check_numerics()
+
+    tf.config.optimizer.set_jit(True)
+    from tensorflow.keras.mixed_precision import experimental as mixed_precision
+
+    #policy = mixed_precision.Policy('mixed_float16')
+    #mixed_precision.set_policy(policy)
+
+
+
+
 @main.command()
 @click.argument('tfrecords')
 @click.argument('epochs', default=3)
@@ -64,18 +76,14 @@ def load_data(tfrecords, validation, embeddings, scale=False):
 def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load):
     '''Train the model'''
 
-    #tf.debugging.enable_check_numerics()
 
-
-    strategy = tf.distribute.MirroredStrategy()
-    with strategy.scope():
-        model = nmrgnn.build_GNNModel()
-        if load:
-            model.load_weights(checkpoint_path)
+    model = nmrgnn.build_GNNModel()
+    if load:
+        model.load_weights(checkpoint_path)
     callbacks = []
     # set-up learning rate scheduler
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5,
-                                                     patience=10, min_lr=1e-6, verbose=1)
+                                                     patience=4, min_lr=1e-6, verbose=1)
     callbacks.append(reduce_lr)
     # tensorboard
     if tensorboard is not None:
@@ -104,6 +112,8 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
 def eval_tfrecords(tfrecords, checkpoint, validation, output):
     '''Evaluate specific file'''    
     
+    setup_optimizations()
+
     model = nmrgnn.build_GNNModel(metrics=False)
     model.load_weights(checkpoint)
     train_data, validation_data = load_data(tfrecords, validation, None)
@@ -151,6 +161,8 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     '''Tune hyperparameters the model'''
+
+    setup_optimizations()
 
     callbacks = []
     # set-up learning rate scheduler
