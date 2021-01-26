@@ -23,8 +23,8 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
     nodes = x[0]
     new_labels = tf.math.divide_no_nan(
         labels - tf.reduce_sum(nodes * peak_avg, axis=1),
-        tf.reduce_sum(nodes * peak_std, axis=1))     
-    return x, tf.stack([w * new_labels, y[:, 1]], axis=1), w
+        tf.reduce_sum(nodes * peak_std, axis=1))
+    return x, tf.stack([w * new_labels, y[:, 1], y[:,-1]], axis=1), w
 
 
 
@@ -82,7 +82,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         model.load_weights(checkpoint_path)
     callbacks = []
     # set-up learning rate scheduler
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5,
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.9,
                                                      patience=4, min_lr=1e-6, verbose=1)
     callbacks.append(reduce_lr)
     # tensorboard
@@ -98,7 +98,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         save_best_only=False)
     callbacks.append(model_checkpoint_callback)
 
-    train_data, validation_data = load_data(tfrecords, validation, embeddings)
+    train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data)
 
@@ -157,7 +157,7 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
 @click.argument('epochs', default=3)
 @click.option('--tuning_path', default='tuning', help='where to save tuning information')
 @click.option('--embeddings', default=None, help='path to embeddings')
-@click.option('--validation', default=0.2, help='relative size of validation')
+@click.option('--validation', default=0.1, help='relative size of validation')
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     '''Tune hyperparameters the model'''
@@ -168,7 +168,7 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     # set-up learning rate scheduler
     early_stop = tf.keras.callbacks.EarlyStopping(
         monitor='val_loss',
-        patience=4,
+        patience=5,
         verbose=0,
         mode='min',
         restore_best_weights=False,
@@ -182,14 +182,13 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
             log_dir=tensorboard, update_freq='epoch', write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
         callbacks.append(tensorboard_callback)
 
-    train_data, validation_data = load_data(tfrecords, validation, embeddings)
+    train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
 
     tuner = kt.tuners.hyperband.Hyperband(
         nmrgnn.build_GNNModel,
         objective=kt.Objective('val_loss', direction='min'),
         max_epochs=epochs,
         hyperband_iterations=3,
-        distribution_strategy=tf.distribute.MirroredStrategy(),
         executions_per_trial=3,
         directory=tuning_path,
         project_name='gnn-tuning')

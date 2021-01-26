@@ -19,17 +19,17 @@ def type_mask(label_name,  embeddings, regex=False):
     return ln
 
 
-class NameMAE(tf.keras.metrics.Metric):
+class NameRMSD(tf.keras.metrics.Metric):
     '''Compute mean absolute error for specific atom name'''
 
     def __init__(self, label_idx, name='name-specific-loss', **kwargs):
-        super(NameMAE, self).__init__(name=name, **kwargs)
-        self.mae = self.add_weight(name='MAE', initializer='zeros', shape=())
+        super(NameRMSD, self).__init__(name=name, **kwargs)
+        self.rmsd = self.add_weight(name='RMSD', initializer='zeros', shape=())
         self.label_idx = label_idx
         self.ln = np.array(label_idx, dtype=np.int32)
 
     def get_config(self):
-        config = super(NameMAE, self).get_config()
+        config = super(NameRMSD, self).get_config()
         config.update({'label_idx': self.label_idx})
         return config
 
@@ -37,28 +37,28 @@ class NameMAE(tf.keras.metrics.Metric):
         # mask diff by which predictions match the label
         mask = y_true[:, -1] * tf.cast(tf.reduce_any(
             tf.equal(tf.cast(y_true[:, 1][..., tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
-        diff = tf.math.abs(y_true[:, 0] - y_pred) * mask
+        diff = (y_true[:, 0] - y_pred)**2 * mask
         N = tf.reduce_sum(mask)
-        self.mae.assign(tf.math.divide_no_nan(tf.reduce_sum(diff), N))
+        self.rmsd.assign(tf.math.sqrt(tf.math.divide_no_nan(tf.reduce_sum(diff), N)))
 
     def result(self):
-        return self.mae
+        return self.rmsd
 
     def reset_states(self):
-        self.mae.assign(0)
+        self.rmsd.assign(0)
 
 
-class NameR2(tf.keras.metrics.Metric):
+class NameCorr(tf.keras.metrics.Metric):
     '''Compute mean absolute error for specific atom name'''
 
-    def __init__(self, label_idx, name='name-specific-r2', **kwargs):
-        super(NameR2, self).__init__(name=name, **kwargs)
-        self.r2 = self.add_weight(name='R2', initializer='zeros', shape=())
+    def __init__(self, label_idx, name='name-specific-r', **kwargs):
+        super(NameCorr, self).__init__(name=name, **kwargs)
+        self.r = self.add_weight(name='Corr', initializer='zeros', shape=())
         self.label_idx = label_idx
         self.ln = np.array(label_idx, dtype=np.int32)
 
     def get_config(self):
-        config = super(NameR2, self).get_config()
+        config = super(NameCorr, self).get_config()
         config.update({'label_idx': self.label_idx})
         return config
 
@@ -66,14 +66,14 @@ class NameR2(tf.keras.metrics.Metric):
         # mask diff by which predictions match the label
         mask = y_true[:, -1] * tf.cast(tf.reduce_any(
             tf.equal(tf.cast(y_true[:, 1][..., tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
-        r2 = NameR2.corr_coeff(y_true[:, 0], y_pred, mask)**2
-        self.r2.assign(r2)
+        r = NameCorr.corr_coeff(y_true[:, 0], y_pred, mask)
+        self.r.assign(r)
 
     def result(self):
-        return self.r2
+        return self.r
 
     def reset_states(self):
-        self.r2.assign(0)
+        self.r.assign(0)
 
     @staticmethod
     def corr_coeff(x, y, w = None):

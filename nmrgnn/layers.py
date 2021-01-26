@@ -3,9 +3,10 @@ import tensorflow as tf
 
 
 class MPLayer(keras.layers.Layer):
-    def __init__(self, activation=None, name='MPLayer', **kwargs):
+    def __init__(self, activation=None, kernel_regularizer=None, name='MPLayer', **kwargs):
         super(MPLayer, self).__init__(name=name, **kwargs)
         self.activation = tf.keras.activations.get(activation)
+        self.mpl_regularizer = tf.keras.regularizers.get(kernel_regularizer)
 
     def build(self, input_shape):
         node_feature_shape, _, edge_feature_shape, _ = input_shape
@@ -39,8 +40,9 @@ class MPLayer(keras.layers.Layer):
                             sliced_features, self.w, inv_degree)
         out = self.activation(reduced)
         # output -> N x D number of atoms x node feature dimension
+        if self.mpl_regularizer is not None:
+            self.add_loss(self.mpl_regularizer(self.w))
         return out
-
 
 class RBFExpansion(tf.keras.layers.Layer):
     R''' A  continuous-filter convolutional radial basis filter input from

@@ -11,19 +11,20 @@ from .metrics import *
 
 def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
     '''Build model with hyper parameter object'''
-    hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=128)
-    hp.Choice('edge_feature_size', [1, 2, 4, 8, 16], ordered=True, default=4)
+    hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=256)
+    hp.Choice('edge_feature_size', [1, 2, 3], ordered=True, default=3)
     hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
     hp.Int('mp_layers', 1, 6, step=1, default=4)
-    hp.Int('fc_layers', 2, 6, step=1, default=3)
+    hp.Int('fc_layers', 2, 6, step=1, default=4)
     hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
     hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
+    hp.Choice('dropout', [True, False], default=True)
     hp.Fixed('rbf_low', 0.005)
-    hp.Fixed('rbf_high', 0.15)
+    hp.Fixed('rbf_high', 0.20)
     hp.Choice('mp_activation', [
-        'relu', 'softplus'], default='relu')
+        'relu', 'softplus', 'tanh'], default='softplus')
     hp.Choice('fc_activation', [
-        'relu', 'softplus'], default='relu')
+        'relu', 'softplus'], default='softplus')
 
     # load peak standards
     standards = nmrdata.load_standards()
@@ -32,42 +33,49 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
-        hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5], default=1e-3))
-    loss = corr_loss
+        hp.Choice('learning_rate', [1e-2, 5e-4, 1e-4, 1e-5], default=1e-4))
+
     embeddings = nmrdata.load_embeddings()
+
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
-    h_mae = NameMAE(label_idx, name='h_mae')
-    label_idx = type_mask(r'.*\-N.*', embeddings, regex=True)
-    n_mae = NameMAE(label_idx, name='n_mae')
-    label_idx = type_mask(r'.*\-C.*', embeddings, regex=True)
-    c_mae = NameMAE(label_idx, name='c_mae')
-    label_idx = type_mask(r'.*\-H', embeddings, regex=True)
-    hn_mae = NameMAE(label_idx, name='hn_mae')
-    label_idx = type_mask(r'.*\-HA*', embeddings, regex=True)
-    ha_mae = NameMAE(label_idx, name='ha_mae')
+    corr_loss = NameLoss(label_idx)
+    loss = corr_loss.call
+    #loss = corr_loss
+
+
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
-    h_r2 = NameR2(label_idx, name='h_r2')
+    h_rmsd = NameRMSD(label_idx, name='h_rmsd')
     label_idx = type_mask(r'.*\-N.*', embeddings, regex=True)
-    n_r2 = NameR2(label_idx, name='n_r2')
+    n_rmsd = NameRMSD(label_idx, name='n_rmsd')
     label_idx = type_mask(r'.*\-C.*', embeddings, regex=True)
-    c_r2 = NameR2(label_idx, name='c_r2')
+    c_rmsd = NameRMSD(label_idx, name='c_rmsd')
     label_idx = type_mask(r'.*\-H$', embeddings, regex=True)
-    hn_r2 = NameR2(label_idx, name='hn_r2')
+    hn_rmsd = NameRMSD(label_idx, name='hn_rmsd')
+    label_idx = type_mask(r'.*\-HA*', embeddings, regex=True)
+    ha_rmsd = NameRMSD(label_idx, name='ha_rmsd')
+    label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
+    h_r = NameCorr(label_idx, name='h_r')
+    label_idx = type_mask(r'.*\-N.*', embeddings, regex=True)
+    n_r = NameCorr(label_idx, name='n_r')
+    label_idx = type_mask(r'.*\-C.*', embeddings, regex=True)
+    c_r = NameCorr(label_idx, name='c_r')
+    label_idx = type_mask(r'.*\-H$', embeddings, regex=True)
+    hn_r = NameCorr(label_idx, name='hn_r')
     label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
-    ha_r2 = NameR2(label_idx, name='ha_r2')
+    ha_r = NameCorr(label_idx, name='ha_r')
     model.compile(optimizer=optimizer,
                   loss=loss,
                   metrics=[
-                      h_mae,
-                      n_mae,
-                      c_mae,
-                      hn_mae,
-                      ha_mae,
-                      h_r2,
-                      n_r2,
-                      c_r2,
-                      hn_r2,
-                      ha_r2
+                      h_rmsd,
+                      n_rmsd,
+                      c_rmsd,
+                      hn_rmsd,
+                      ha_rmsd,
+                      h_r,
+                      n_r,
+                      c_r,
+                      hn_r,
+                      ha_r
                   ] if metrics else None
                   )
     return model
@@ -83,18 +91,19 @@ class EdgeFCBlock(keras.layers.Layer):
         # add l1 regularizer to 
         # input, so that we 
         # zero-out unused distance features
+        # off until I know I need it
         self.edge_fc = [keras.layers.Dense(
             hypers.get('edge_hidden_size'), 
             activation=hypers.get('fc_activation'),
-            kernel_regularizer='l1'
+            #kernel_regularizer='l1',
         )]
         # stack Dense Layers as a block
         for _ in range(hypers.get('edge_fc_layers') - 2):
             self.edge_fc.append(keras.layers.Dense(
                 hypers.get('edge_hidden_size'), activation=hypers.get('fc_activation')))
-        # activation function for the last layer is 'tanh'
         self.edge_fc.append(keras.layers.Dense(
-            hypers.get('edge_feature_size'), activation="tanh"))
+            hypers.get('edge_feature_size')))
+
         self.hypers = hypers
 
     def call(self, edge_input):
@@ -120,6 +129,7 @@ class MPBlock(keras.layers.Layer):
         # stack Message Passing Layers as a block
         for _ in range(hypers.get('mp_layers')):
             self.mp.append(MPLayer(hypers.get('mp_activation')))
+
         self.hypers = hypers
 
     def call(self, inputs):
@@ -152,12 +162,13 @@ class FCBlock(keras.layers.Layer):
             self.fc.append(keras.layers.Dense(
                 hypers.get('atom_feature_size'), activation=hypers.get('fc_activation')))
         self.fc.append(keras.layers.Dense(
-            hypers.get('atom_feature_size'), activation="tanh"))
+            hypers.get('atom_feature_size') // 2, activation=hypers.get('fc_activation')))
         self.hypers = hypers
 
     def call(self, nodes):
-        for i in range(len(self.fc)):
-            nodes = self.fc[i](nodes)
+        for i in range(len(self.fc) - 1):
+            nodes = self.fc[i](nodes) + nodes
+        nodes = self.fc[-1](nodes)
         # dimension of output should match with input
         return nodes
 
@@ -179,6 +190,10 @@ class GNNModel(keras.Model):
         self.noise_block = tf.keras.layers.GaussianNoise(hypers.get('noise'))
         self.hypers = hypers
         self.embed_dim = hypers.get('atom_feature_size')
+        if hypers.get('dropout'):
+            self.dropout = tf.keras.layers.Dropout(0.2)
+        else:
+            self.dropout = tf.keras.layers.Lambda(lambda x: x)
         # we will use peak_standards now (large) and cut down later
         # This is because saving peak_standards is probelmatic
         LOTS_OF_ELEMENTS = 100
@@ -225,10 +240,11 @@ class GNNModel(keras.Model):
         mp_inputs = [node_embed, nlist_input, edge_embeded, inv_degree]
         semi_nodes = self.mp_block(mp_inputs)
         out_nodes = self.fc_block(semi_nodes)
+        out_nodes = self.dropout(out_nodes, training)
         full_peaks = self.out_layer(out_nodes)
         #if training:
         #    peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
-        #else:
+        #else:            
         peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
                               node_input * self.peak_avg, axis=-1)
         return peaks
