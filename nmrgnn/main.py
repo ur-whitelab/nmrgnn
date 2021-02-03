@@ -82,8 +82,8 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         model.load_weights(checkpoint_path)
     callbacks = []
     # set-up learning rate scheduler
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.9,
-                                                     patience=4, min_lr=1e-6, verbose=1)
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.99,
+                                                     patience=4, min_lr=1e-4, verbose=1)
     callbacks.append(reduce_lr)
     # tensorboard
     if tensorboard is not None:
@@ -143,6 +143,11 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
         count += 1
         print(f'\rComputing...{count}', end='')
     print('done')
+
+    print(model.count_params())
+    print(model.summary())
+
+
     out = pd.DataFrame({
         'element': element,
         'y': shift,
@@ -151,6 +156,55 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
         'name': name
     })
     out.to_csv(f'{output}.csv', index=False)
+
+@main.command()
+@click.argument('tfrecords')
+@click.argument('output_csv')
+@click.argument('checkpoint', help='model file path')
+def eval_pdb(pdbfile, output, checkpoint):
+    '''Evaluate specific file'''    
+    
+    setup_optimizations()
+
+    model = nmrgnn.build_GNNModel(metrics=False)
+    model.load_weights(checkpoint)
+    train_data, validation_data = load_data(tfrecords, 0.0, None)
+    embeddings = nmrdata.load_embeddings()
+    print('Computing...')
+    element = []
+    prediction = []
+    shift = []
+    name = []
+    class_name = []
+    count = 0
+    rev_names = {v: k for k,v in embeddings['name'].items()}
+    for x,y,w in data:
+        # get predictions
+        yhat = model(x)
+        ytrue = y[:, 0]
+        namei = y[:,1]#tf.cast(y[:,1], tf.int32)
+        name.extend([rev_names[int(n)].split('-')[1] for wi,n in zip(w, namei) if wi > 0])
+        class_name.extend([rev_names[int(n)].split('-')[0] for wi,n in zip(w, namei) if wi > 0])
+        element.extend([rev_names[int(n)].split('-')[1][0] for wi,n in zip(w, namei) if wi > 0])
+        prediction.extend([float(yi) for wi,yi in zip(w, yhat) if wi > 0])
+        shift.extend([float(yi) for wi,yi in zip(w, ytrue) if wi > 0])
+        count += 1
+        print(f'\rComputing...{count}', end='')
+    print('done')
+
+    print(model.count_params())
+    print(model.summary())
+
+
+    out = pd.DataFrame({
+        'element': element,
+        'y': shift,
+        'yhat': prediction,
+        'class': class_name,
+        'name': name
+    })
+    out.to_csv(f'{output}.csv', index=False)
+
 
 @main.command()
 @click.argument('tfrecords')

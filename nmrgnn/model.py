@@ -11,13 +11,22 @@ from .metrics import *
 
 def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
     '''Build model with hyper parameter object'''
+    # small AMP (170k parameters)
+    #hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=128)
+    #hp.Choice('edge_feature_size', [1, 2, 3, 64], ordered=True, default=64)
+    #hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=64)
+    #hp.Int('mp_layers', 1, 6, step=1, default=4)
+    #hp.Int('fc_layers', 2, 6, step=1, default=3)
+    #hp.Int('edge_fc_layers', 2, 6, step=1, default=3)
+
     hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=256)
-    hp.Choice('edge_feature_size', [1, 2, 3], ordered=True, default=3)
+    hp.Choice('edge_feature_size', [1, 2, 3, 64], ordered=True, default=3)
     hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
     hp.Int('mp_layers', 1, 6, step=1, default=4)
     hp.Int('fc_layers', 2, 6, step=1, default=4)
     hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
-    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
+
+    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.0)
     hp.Choice('dropout', [True, False], default=True)
     hp.Fixed('rbf_low', 0.005)
     hp.Fixed('rbf_high', 0.20)
@@ -33,14 +42,15 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
-        hp.Choice('learning_rate', [1e-2, 5e-4, 1e-4, 1e-5], default=1e-4))
+        hp.Choice('learning_rate', [1e-3, 5e-4, 1e-4, 1e-5], default=1e-4))
 
     embeddings = nmrdata.load_embeddings()
 
-    label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
+    #label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
+    label_idx = type_mask(r'.*', embeddings, regex=True)
     corr_loss = NameLoss(label_idx)
     loss = corr_loss.call
-    #loss = corr_loss
+
 
 
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
@@ -62,7 +72,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
     label_idx = type_mask(r'.*\-H$', embeddings, regex=True)
     hn_r = NameCorr(label_idx, name='hn_r')
     label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
-    ha_r = NameCorr(label_idx, name='ha_r')
+    ha_r = NameCorr(label_idx, name='ha_r')    
     model.compile(optimizer=optimizer,
                   loss=loss,
                   metrics=[
@@ -82,7 +92,6 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 
 
 # Fully Connected Layers BLOCK for edge matrix
-
 
 class EdgeFCBlock(keras.layers.Layer):
     def __init__(self, hypers):
