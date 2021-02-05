@@ -34,9 +34,9 @@ def corr_loss(labels, predictions, sample_weight = None, s=1e-3):
 
 
 class NameLoss:
-    '''Compute mean absolute error for specific atom name'''
+    '''Compute L2 loss * s + corr_loss * (1 - s) for specific atom name'''
 
-    def __init__(self, label_idx, s=1e-3):
+    def __init__(self, label_idx, s=1.):
         self.label_idx = label_idx
         self.ln = np.array(label_idx, dtype=np.int32)
         self.s = s
@@ -53,6 +53,7 @@ class NameLoss:
         x = y_pred
         y = y_true[:,0]
         l2 = tf.math.divide_no_nan(tf.reduce_sum( w * ( y - x)**2 ), tf.reduce_sum(w))
-        return l2
+        r = corr_coeff(x, y, w)
+        return l2 * self.s + (self.s - 1) * (1 - r)
         
 

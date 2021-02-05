@@ -66,18 +66,19 @@ def setup_optimizations():
 
 
 @main.command()
-@click.argument('tfrecords')
+@click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
 @click.argument('epochs', default=3)
-@click.option('--checkpoint-path', default='/tmp/checkpoint', help='where to save model')
+@click.option('--checkpoint-path', default='/tmp/checkpoint', type=click.Path(), help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
 @click.option('--validation', default=0.2, help='relative size of validation')
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 @click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
-def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load):
+@click.option('--loss-balance', default=1.0, help='Balance between L2 (max @ 1.0) and corr loss (max @ 0.0)')
+def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
     '''Train the model'''
 
 
-    model = nmrgnn.build_GNNModel()
+    model = nmrgnn.build_GNNModel(loss_balance=loss_balance)
     if load:
         model.load_weights(checkpoint_path)
     callbacks = []
@@ -160,7 +161,7 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
 @main.command()
 @click.argument('tfrecords')
 @click.argument('output_csv')
-@click.argument('checkpoint', help='model file path')
+@click.argument('checkpoint')
 def eval_pdb(pdbfile, output, checkpoint):
     '''Evaluate specific file'''    
     

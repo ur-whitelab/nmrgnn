@@ -9,7 +9,7 @@ from .losses import *
 from .metrics import *
 
 
-def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
+def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     '''Build model with hyper parameter object'''
     # small AMP (170k parameters)
     #hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=128)
@@ -48,7 +48,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True):
 
     #label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     label_idx = type_mask(r'.*', embeddings, regex=True)
-    corr_loss = NameLoss(label_idx)
+    corr_loss = NameLoss(label_idx, s=loss_balance)
     loss = corr_loss.call
 
 
