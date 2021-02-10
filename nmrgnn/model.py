@@ -73,6 +73,15 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     hn_r = NameCorr(label_idx, name='hn_r')
     label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
     ha_r = NameCorr(label_idx, name='ha_r')    
+    label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
+    ha_r = NameCorr(label_idx, name='ha_r')    
+
+    label_idx = type_mask(r'DFT\-.*', embeddings, regex=True)
+    dft_r = NameCorr(label_idx, name='dft_r')    
+    label_idx = type_mask(r'MB-\.*', embeddings, regex=True)
+    mb_r = NameCorr(label_idx, name='mb_r')    
+
+
     model.compile(optimizer=optimizer,
                   loss=loss,
                   metrics=[
@@ -85,7 +94,9 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
                       n_r,
                       c_r,
                       hn_r,
-                      ha_r
+                      ha_r,
+                      mb_r,
+                      dft_r
                   ] if metrics else None
                   )
     return model
@@ -232,7 +243,7 @@ class GNNModel(keras.Model):
         # node_input should be 1 hot!
         # as written here, edge input is distance ONLY
         # modify if you want to include type informaton
-        node_input, nlist_input, edge_input, inv_degree = inputs
+        node_input, nlist_input, edge_input, inv_degree = inputs        
 
         edge_mask = tf.cast(edge_input > 0, tf.float32)[..., tf.newaxis]
 

@@ -16,7 +16,8 @@ def corr_coeff(x, y, w = None):
     xm2 = tf.reduce_sum(w * x**2) / m
     ym2 = tf.reduce_sum(w * y**2) / m
     cov = tf.reduce_sum( w * (x - xm) * (y - ym) )
-    cor = tf.math.divide_no_nan(cov, m * tf.math.sqrt((xm2 - xm**2) * (ym2 - ym**2)))
+    # clip because somehow we get negative covariance sometimes (???)
+    cor = tf.math.divide_no_nan(cov, m * tf.math.sqrt(tf.clip_by_value((xm2 - xm**2) * (ym2 - ym**2), 0, 1e32)))
     return cor
 
 def corr_loss(labels, predictions, sample_weight = None, s=1e-3):
@@ -54,6 +55,6 @@ class NameLoss:
         y = y_true[:,0]
         l2 = tf.math.divide_no_nan(tf.reduce_sum( w * ( y - x)**2 ), tf.reduce_sum(w))
         r = corr_coeff(x, y, w)
-        return l2 * self.s + (self.s - 1) * (1 - r)
+        return l2 * self.s + (1 - self.s) * (1 - r)
         
 

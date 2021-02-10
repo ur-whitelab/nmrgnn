@@ -48,7 +48,7 @@ def load_data(tfrecords, validation, embeddings, scale=False):
     else:
         train_data = data.skip(validation_size).cache()
 
-    # shuffle train
+    # shuffle train at each iteration
     train_data = train_data.shuffle(500, reshuffle_each_iteration=True)
     return train_data, validation_data
 
@@ -77,7 +77,6 @@ def setup_optimizations():
 def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
     '''Train the model'''
 
-
     model = nmrgnn.build_GNNModel(loss_balance=loss_balance)
     if load:
         model.load_weights(checkpoint_path)
@@ -98,7 +97,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
         monitor='val_loss',
         save_best_only=False)
     callbacks.append(model_checkpoint_callback)
-
+    
     train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data)
