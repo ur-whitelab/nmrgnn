@@ -47,6 +47,33 @@ class NameRMSD(tf.keras.metrics.Metric):
     def reset_states(self):
         self.rmsd.assign(0)
 
+class NameCount(tf.keras.metrics.Metric):
+    '''Count occurences of name'''
+
+    def __init__(self, label_idx, name='avg-name-count', **kwargs):
+        super(NameCount, self).__init__(name=name, **kwargs)
+        self.count = self.add_weight(name='count', initializer='zeros', shape=())
+        self.label_idx = label_idx
+        self.ln = np.array(label_idx, dtype=np.int32)
+
+    def get_config(self):
+        config = super(NameCount, self).get_config()
+        config.update({'label_idx': self.label_idx})
+        return config
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        # mask diff by which predictions match the label
+        mask = y_true[:, -1] * tf.cast(tf.reduce_any(
+            tf.equal(tf.cast(y_true[:, 1, tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
+        N = tf.reduce_sum(mask)
+        self.count.assign(N)
+
+    def result(self):
+        return self.count
+
+    def reset_states(self):
+        self.count.assign(0)
+
 
 class NameCorr(tf.keras.metrics.Metric):
     '''Compute mean absolute error for specific atom name'''
@@ -73,7 +100,7 @@ class NameCorr(tf.keras.metrics.Metric):
         return self.r
 
     def reset_states(self):
-        self.r.assign(0)
+        self.r.assign(0.)
 
     @staticmethod
     def corr_coeff(x, y, w = None):

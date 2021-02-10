@@ -30,27 +30,43 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
 
 def load_data(tfrecords, validation, embeddings, scale=False):
     # load data and split into train/validation
-    data = nmrdata.dataset(tfrecords, embeddings=embeddings, label_info=True).prefetch(
-        tf.data.experimental.AUTOTUNE)
-    data_size = len(list(data))
-    validation_size = int(validation * data_size)
-    peak_standards = nmrdata.load_standards()
-    peak_std = np.ones(100, dtype=np.float32)
-    peak_avg = np.zeros(100, dtype=np.float32)
-    for k, v in peak_standards.items():
-        peak_std[k] = v[2]
-        peak_avg[k] = v[1]
-    validation_data = data.take(validation_size).cache()
+
+
+    # need to load each tf record individually and split 
+    # so that we have equal representation in validation data
+    data = None
+    validation_data = None
+    print(f'Loading from {len(tfrecords)} files')
+    for tfr in tfrecords:
+        d = nmrdata.dataset(tfr, embeddings=embeddings, label_info=True)
+        # get size and split        
+        ds = len(list(d))
+        vs = int(validation * ds)
+        print(f'Loaded {tfr} and found {ds} records. Will keep {vs} for validation')
+        v = d.take(vs)
+        d = d.skip(vs)
+        if data is None:
+            data = d
+            validation_data = v
+        else:
+            data = data.concatenate(d)
+            validation_data = validation_data.concatenate(v)
+
     if scale:
-        train_data = data.skip(validation_size).map(
+        peak_standards = nmrdata.load_standards()
+        peak_std = np.ones(100, dtype=np.float32)
+        peak_avg = np.zeros(100, dtype=np.float32)
+        for k, v in peak_standards.items():
+            peak_std[k] = v[2]
+            peak_avg[k] = v[1]
+
+        train_data = data.map(
             lambda *x: unstandardize_labels(*x, peak_std=peak_std, peak_avg=peak_avg)
-        ).cache()
-    else:
-        train_data = data.skip(validation_size).cache()
+        )
 
     # shuffle train at each iteration
-    train_data = train_data.shuffle(500, reshuffle_each_iteration=True)
-    return train_data, validation_data
+    train_data = data.shuffle(500, reshuffle_each_iteration=True)
+    return train_data.prefetch(tf.data.experimental.AUTOTUNE), validation_data.cache()
 
 
 def setup_optimizations():
@@ -70,7 +86,7 @@ def setup_optimizations():
 @click.argument('epochs', default=3)
 @click.option('--checkpoint-path', default='/tmp/checkpoint', type=click.Path(), help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
-@click.option('--validation', default=0.2, help='relative size of validation')
+@click.option('--validation', default=0.1, help='relative size of validation')
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 @click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
 @click.option('--loss-balance', default=1.0, help='Balance between L2 (max @ 1.0) and corr loss (max @ 0.0)')
@@ -100,7 +116,7 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     
     train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
-              validation_data=validation_data)
+              validation_data=validation_data, validation_freq=1)
 
 
 
