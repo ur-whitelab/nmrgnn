@@ -174,52 +174,36 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
     out.to_csv(f'{output}.csv', index=False)
 
 @main.command()
-@click.argument('tfrecords')
-@click.argument('output_csv')
+@click.argument('struct-file')
+@click.argument('output-csv')
 @click.argument('checkpoint')
-def eval_pdb(pdbfile, output, checkpoint):
+@click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
+def eval_struct(struct_file, output_csv, checkpoint, neighbor_number):
     '''Evaluate specific file'''    
+
+    import nmrdata.parse
     
     setup_optimizations()
 
     model = nmrgnn.build_GNNModel(metrics=False)
     model.load_weights(checkpoint)
-    train_data, validation_data = load_data(tfrecords, 0.0, None)
     embeddings = nmrdata.load_embeddings()
-    print('Computing...')
-    element = []
-    prediction = []
-    shift = []
-    name = []
-    class_name = []
-    count = 0
-    rev_names = {v: k for k,v in embeddings['name'].items()}
-    for x,y,w in data:
-        # get predictions
-        yhat = model(x)
-        ytrue = y[:, 0]
-        namei = y[:,1]#tf.cast(y[:,1], tf.int32)
-        name.extend([rev_names[int(n)].split('-')[1] for wi,n in zip(w, namei) if wi > 0])
-        class_name.extend([rev_names[int(n)].split('-')[0] for wi,n in zip(w, namei) if wi > 0])
-        element.extend([rev_names[int(n)].split('-')[1][0] for wi,n in zip(w, namei) if wi > 0])
-        prediction.extend([float(yi) for wi,yi in zip(w, yhat) if wi > 0])
-        shift.extend([float(yi) for wi,yi in zip(w, ytrue) if wi > 0])
-        count += 1
-        print(f'\rComputing...{count}', end='')
-    print('done')
+    
+    import MDAnalysis as md
+    u = md.Universe(struct_file)
 
-    print(model.count_params())
-    print(model.summary())
-
-
+    atoms, edges, nlist = nmrdata.parse.parse_universe(u, neighbor_number, embeddings) 
+    mask = np.ones_like(atoms)
+    inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
+                                                  tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
+    peaks = model([atoms, nlist, edges, inv_degree])
+    
     out = pd.DataFrame({
-        'element': element,
-        'y': shift,
-        'yhat': prediction,
-        'class': class_name,
-        'name': name
+        'index': np.arange(atoms.shape[0]),
+        'names': u.atoms.names,
+        'peaks': peaks        
     })
-    out.to_csv(f'{output}.csv', index=False)
+    out.to_csv(f'{output_csv}', index=False, float_format='%0.2f')
 
 
 @main.command()
