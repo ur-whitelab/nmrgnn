@@ -1,4 +1,5 @@
 import click
+import os
 import nmrdata
 import tensorflow as tf
 import kerastuner as kt
@@ -83,6 +84,7 @@ def setup_optimizations():
 
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
+@click.argument('name')
 @click.argument('epochs', default=3)
 @click.option('--checkpoint-path', default='/tmp/checkpoint', type=click.Path(), help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
@@ -90,7 +92,7 @@ def setup_optimizations():
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 @click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
 @click.option('--loss-balance', default=1.0, help='Balance between L2 (max @ 1.0) and corr loss (max @ 0.0)')
-def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
+def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
     '''Train the model'''
 
     model = nmrgnn.build_GNNModel(loss_balance=loss_balance)
@@ -115,23 +117,31 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     callbacks.append(model_checkpoint_callback)
     
     train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
+
+    # explicitly call model to get shapes defined 
+    for t in train_data:
+        x,y,m = t
+        model(x)
+        break
+
     model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data, validation_freq=1)
 
+    model.save(name)
 
 
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
-@click.argument('checkpoint')
-@click.argument('output')
+@click.argument('model-file')
 @click.option('--validation', default=0.0, help='relative size of validation. If non-zero, only validation will be saved')
-def eval_tfrecords(tfrecords, checkpoint, validation, output):
+@click.option('--data-name', default='', help='Short name for data on table output')
+@click.option('--merge', default=None, help='Merge results with another markdown table')
+def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     '''Evaluate specific file'''    
     
-    setup_optimizations()
+    model_name = os.path.basename(model_file)
 
-    model = nmrgnn.build_GNNModel(metrics=False)
-    model.load_weights(checkpoint)
+    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
     train_data, validation_data = load_data(tfrecords, validation, None)
     if validation > 0:
         data = validation_data
@@ -160,8 +170,8 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
         print(f'\rComputing...{count}', end='')
     print('done')
 
-    print(model.count_params())
-    print(model.summary())
+    # I think this just prints (no need for print?)
+    model.summary()
 
 
     out = pd.DataFrame({
@@ -171,7 +181,39 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
         'class': class_name,
         'name': name
     })
-    out.to_csv(f'{output}.csv', index=False)
+    out.to_csv(f'{model_name}.csv', index=False)
+
+    # compute correlations & RMSD broken out by class
+    results = dict()
+    for e in np.unique(out.element):
+        results[f'{data_name}-{e}-r'] = [len(out[out.element == e].y)]
+        results[f'{data_name}-{e}-r'].append(out[out.element == e].corr().iloc[0,1])
+    for n in np.unique(out.name):
+        results[f'{data_name}-{n}-r'] = [len(out[out.name == n].y)]
+        results[f'{data_name}-{n}-r'].append(out[out.name == n].corr().iloc[0,1])
+    for e in np.unique(out.element):
+        results[f'{data_name}-{e}-rmsd'] = [len(out[out.element == e].y)]
+        results[f'{data_name}-{e}-rmsd'].append(np.mean((out[out.element == e].yhat - out[out.element == e].y)**2))
+    for n in np.unique(out.name):
+        results[f'{data_name}-{n}-rmsd'] = [len(out[out.name == n].y)]
+        results[f'{data_name}-{n}-rmsd'].append(np.mean((out[out.name == n].yhat - out[out.name == n].y)**2))
+    results = pd.DataFrame(results, index=['N', model_name])
+    results = results.transpose()
+
+    if merge is None:
+        merge = f'{model_name}.md'
+    else:
+        # https://stackoverflow.com/a/60156036
+        # read markdopwn table
+        if os.path.exists(merge):
+            other = pd.read_table(merge, sep="|", header=0, index_col=1, skipinitialspace=True).dropna(axis=1, how='all').iloc[1:]
+            # remove whitespace in column names
+            other.columns = other.columns.str.replace(' ','')
+            results = pd.concat([results, other])
+        
+    with open(merge, 'w') as f:
+        f.write(results.to_markdown())
+    
 
 @main.command()
 @click.argument('struct-file')

@@ -101,38 +101,38 @@ class test_fc_block(unittest.TestCase):
     def test_fcBlock_call(self):
         model = nmrgnn.build_GNNModel()
         hypers = model.hypers
-        nodes = tf.ones((5, 16))
+        nodes = tf.ones((5, hypers.get('atom_feature_size')))
         fcBlock = nmrgnn.FCBlock(hypers)
         new_nodes = fcBlock(nodes)
-        assert new_nodes.shape[-1] == hypers.get('atom_feature_size')
-        assert new_nodes.shape[:-1] == nodes.shape[:-1]
+        assert new_nodes.shape[-1] == hypers.get('atom_feature_size') // 2
+        assert new_nodes.shape[-1] == nodes.shape[-1] // 2
 
 
 class TestMetrics(unittest.TestCase):
 
-    def test_name_mae(self):
+    def test_name_rmsd(self):
         embeddings = {'name': {'ALA-N': 4, 'GLU-N': 2, 'GLU-H': 3}}
-        label_idx = nmrgnn.type_mask('.*\-H', embeddings, regex=True)
-        nm = nmrgnn.NameMAE(label_idx)
-        y = (tf.zeros((5,)), tf.constant([4., 3, 3, 2, 4]))
+        label_idx = nmrgnn.type_mask(r'.*\-H', embeddings, regex=True)
+        nm = nmrgnn.NameRMSD(label_idx)
+        y = (tf.zeros((5,)), tf.constant([4., 3, 3, 2, 4]), tf.ones(5,))
         y = tf.stack([*y], axis=1)
         print(tf.cast(y[:, 1:2], tf.int32))
         y_pred = np.zeros((5,))
         y_pred[1] = 5
         nm.update_state(y, y_pred)
-        np.testing.assert_allclose(nm.result(), 5.0 / 2)
+        np.testing.assert_allclose(nm.result(), np.sqrt(5.0**2 / 2))
 
-        label_idx = nmrgnn.type_mask('GLU-H', embeddings, regex=True)
-        nm = nmrgnn.NameMAE(label_idx)
+        label_idx = nmrgnn.type_mask(r'GLU-H', embeddings, regex=True)
+        nm = nmrgnn.NameRMSD(label_idx)
         nm.update_state(y, y_pred)
-        np.testing.assert_allclose(nm.result(), 5.0 / 2)
+        np.testing.assert_allclose(nm.result(), np.sqrt(5.0**2 / 2))
 
         y_pred[:] = 0
         y_pred[-2] = 5
-        label_idx = nmrgnn.type_mask('GLU\-.*', embeddings, regex=True)
-        nm = nmrgnn.NameMAE(label_idx)
+        label_idx = nmrgnn.type_mask(r'GLU\-.*', embeddings, regex=True)
+        nm = nmrgnn.NameRMSD(label_idx)
         nm.update_state(y, y_pred)
-        np.testing.assert_allclose(nm.result(), 5.0 / 3)
+        np.testing.assert_allclose(nm.result(), np.sqrt(5**2 / 3))
 
         with self.assertRaises(ValueError):
             nm = nmrgnn.type_mask('LYS\-.*', embeddings, regex=True)
@@ -190,7 +190,9 @@ class test_gnnmodel(unittest.TestCase):
         y = (tf.zeros((5,)), tf.constant([4., 3, 3, 2, 4]))
         y = tf.stack([*y], axis=1)
         y_true = tf.ones(5,)
-        loss = nmrgnn.MeanSquaredLogartihmicErrorNames()
+        embeddings = {'name': {'ALA-N': 4, 'GLU-N': 2, 'GLU-H': 3}}
+        label_idx = nmrgnn.type_mask(r'.*\-H', embeddings, regex=True)
+        loss = nmrgnn.NameLoss(label_idx, s=0.5)
         loss(y, y_true)
 
     def test_gnnmodel_build(self):
