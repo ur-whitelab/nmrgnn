@@ -38,6 +38,7 @@ class MPLayer(keras.layers.Layer):
         # m -> atom atom feature output
         reduced = tf.einsum('ijn,ijl,lmn,i->im', edges,
                             sliced_features, self.w, inv_degree)
+        # TODO break it up to reduce memory
         out = self.activation(reduced)
         # output -> N x D number of atoms x node feature dimension
         if self.mpl_regularizer is not None:

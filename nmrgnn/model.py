@@ -26,8 +26,8 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     hp.Int('fc_layers', 2, 6, step=1, default=4)
     hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
 
-    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.0)
-    hp.Choice('dropout', [True, False], default=False)
+    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
+    hp.Choice('dropout', [True, False], default=True)
     hp.Fixed('rbf_low', 0.005)
     hp.Fixed('rbf_high', 0.20)
     hp.Choice('mp_activation', [

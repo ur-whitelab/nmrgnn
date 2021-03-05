@@ -6,6 +6,7 @@ import kerastuner as kt
 import nmrgnn
 import pandas as pd
 import numpy as np
+import pickle
 
 
 @click.group()
@@ -124,10 +125,18 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
         model(x)
         break
 
-    model.fit(train_data, epochs=epochs, callbacks=callbacks,
+    results = model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data, validation_freq=1)
 
     model.save(name)
+    
+    pfile = name + '-history-0.pb'
+    i = 0
+    while os.path.exists(pfile):
+        i += 1
+        pfile = f'{name}-history-{i}.pb'
+    with open(pfile, 'wb') as f:
+        pickle.dump(results.history, file=f)
 
 
 @main.command()
@@ -213,6 +222,7 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
         
     with open(merge, 'w') as f:
         f.write(results.to_markdown())
+        f.write('\n')
     
 
 @main.command()
