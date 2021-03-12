@@ -26,7 +26,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     hp.Int('fc_layers', 2, 6, step=1, default=4)
     hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
 
-    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.0)
+    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
     hp.Choice('dropout', [True, False], default=True)
     hp.Fixed('rbf_low', 0.005)
     hp.Fixed('rbf_high', 0.20)
@@ -49,7 +49,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     #label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     label_idx = type_mask(r'.*', embeddings, regex=True)
     corr_loss = NameLoss(label_idx, s=loss_balance)
-    loss = corr_loss.call
+    loss = corr_loss
 
 
 
@@ -216,7 +216,7 @@ class GNNModel(keras.Model):
         if hypers.get('dropout'):
             self.dropout = tf.keras.layers.Dropout(0.2)
         else:
-            self.dropout = tf.keras.layers.Lambda(lambda x: x)
+            self.dropout = None
         # we will use peak_standards now (large) and cut down later
         # This is because saving peak_standards is probelmatic
         LOTS_OF_ELEMENTS = 100
@@ -263,7 +263,8 @@ class GNNModel(keras.Model):
         mp_inputs = [node_embed, nlist_input, edge_embeded, inv_degree]
         semi_nodes = self.mp_block(mp_inputs)
         out_nodes = self.fc_block(semi_nodes)
-        out_nodes = self.dropout(out_nodes, training)
+        if self.dropout is not None:
+            out_nodes = self.dropout(out_nodes, training)
         full_peaks = self.out_layer(out_nodes)
         #if training:
         #    peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)

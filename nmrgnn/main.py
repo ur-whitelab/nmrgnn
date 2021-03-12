@@ -1,10 +1,12 @@
 import click
+import os
 import nmrdata
 import tensorflow as tf
 import kerastuner as kt
 import nmrgnn
 import pandas as pd
 import numpy as np
+import pickle
 
 
 @click.group()
@@ -83,6 +85,7 @@ def setup_optimizations():
 
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
+@click.argument('name')
 @click.argument('epochs', default=3)
 @click.option('--checkpoint-path', default='/tmp/checkpoint', type=click.Path(), help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
@@ -90,7 +93,7 @@ def setup_optimizations():
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 @click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
 @click.option('--loss-balance', default=1.0, help='Balance between L2 (max @ 1.0) and corr loss (max @ 0.0)')
-def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
+def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
     '''Train the model'''
 
     model = nmrgnn.build_GNNModel(loss_balance=loss_balance)
@@ -115,23 +118,39 @@ def train(tfrecords, epochs, embeddings, validation, checkpoint_path, tensorboar
     callbacks.append(model_checkpoint_callback)
     
     train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
-    model.fit(train_data, epochs=epochs, callbacks=callbacks,
+
+    # explicitly call model to get shapes defined 
+    for t in train_data:
+        x,y,m = t
+        model(x)
+        break
+
+    results = model.fit(train_data, epochs=epochs, callbacks=callbacks,
               validation_data=validation_data, validation_freq=1)
 
+    model.save(name)
+    
+    pfile = name + '-history-0.pb'
+    i = 0
+    while os.path.exists(pfile):
+        i += 1
+        pfile = f'{name}-history-{i}.pb'
+    with open(pfile, 'wb') as f:
+        pickle.dump(results.history, file=f)
 
 
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
-@click.argument('checkpoint')
-@click.argument('output')
+@click.argument('model-file')
 @click.option('--validation', default=0.0, help='relative size of validation. If non-zero, only validation will be saved')
-def eval_tfrecords(tfrecords, checkpoint, validation, output):
+@click.option('--data-name', default='', help='Short name for data on table output')
+@click.option('--merge', default=None, help='Merge results with another markdown table')
+def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     '''Evaluate specific file'''    
     
-    setup_optimizations()
+    model_name = os.path.basename(model_file)
 
-    model = nmrgnn.build_GNNModel(metrics=False)
-    model.load_weights(checkpoint)
+    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
     train_data, validation_data = load_data(tfrecords, validation, None)
     if validation > 0:
         data = validation_data
@@ -160,8 +179,8 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
         print(f'\rComputing...{count}', end='')
     print('done')
 
-    print(model.count_params())
-    print(model.summary())
+    # I think this just prints (no need for print?)
+    model.summary()
 
 
     out = pd.DataFrame({
@@ -171,55 +190,72 @@ def eval_tfrecords(tfrecords, checkpoint, validation, output):
         'class': class_name,
         'name': name
     })
-    out.to_csv(f'{output}.csv', index=False)
+    out.to_csv(f'{model_name}.csv', index=False)
+
+    # compute correlations & RMSD broken out by class
+    results = dict()
+    for e in np.unique(out.element):
+        results[f'{data_name}-{e}-r'] = [len(out[out.element == e].y)]
+        results[f'{data_name}-{e}-r'].append(out[out.element == e].corr().iloc[0,1])
+    for n in np.unique(out.name):
+        results[f'{data_name}-{n}-r'] = [len(out[out.name == n].y)]
+        results[f'{data_name}-{n}-r'].append(out[out.name == n].corr().iloc[0,1])
+    for e in np.unique(out.element):
+        results[f'{data_name}-{e}-rmsd'] = [len(out[out.element == e].y)]
+        results[f'{data_name}-{e}-rmsd'].append(np.mean((out[out.element == e].yhat - out[out.element == e].y)**2))
+    for n in np.unique(out.name):
+        results[f'{data_name}-{n}-rmsd'] = [len(out[out.name == n].y)]
+        results[f'{data_name}-{n}-rmsd'].append(np.mean((out[out.name == n].yhat - out[out.name == n].y)**2))
+    results = pd.DataFrame(results, index=['N', model_name])
+    results = results.transpose()
+
+    if merge is None:
+        merge = f'{model_name}.md'
+    else:
+        # https://stackoverflow.com/a/60156036
+        # read markdopwn table
+        if os.path.exists(merge):
+            other = pd.read_table(merge, sep="|", header=0, index_col=1, skipinitialspace=True).dropna(axis=1, how='all').iloc[1:]
+            # remove whitespace in column names
+            other.columns = other.columns.str.replace(' ','')
+            results = pd.concat([results, other])
+        
+    with open(merge, 'w') as f:
+        f.write(results.to_markdown())
+        f.write('\n')
+    
 
 @main.command()
-@click.argument('tfrecords')
-@click.argument('output_csv')
+@click.argument('struct-file')
+@click.argument('output-csv')
 @click.argument('checkpoint')
-def eval_pdb(pdbfile, output, checkpoint):
+@click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
+def eval_struct(struct_file, output_csv, checkpoint, neighbor_number):
     '''Evaluate specific file'''    
+
+    import nmrdata.parse
     
     setup_optimizations()
 
     model = nmrgnn.build_GNNModel(metrics=False)
     model.load_weights(checkpoint)
-    train_data, validation_data = load_data(tfrecords, 0.0, None)
     embeddings = nmrdata.load_embeddings()
-    print('Computing...')
-    element = []
-    prediction = []
-    shift = []
-    name = []
-    class_name = []
-    count = 0
-    rev_names = {v: k for k,v in embeddings['name'].items()}
-    for x,y,w in data:
-        # get predictions
-        yhat = model(x)
-        ytrue = y[:, 0]
-        namei = y[:,1]#tf.cast(y[:,1], tf.int32)
-        name.extend([rev_names[int(n)].split('-')[1] for wi,n in zip(w, namei) if wi > 0])
-        class_name.extend([rev_names[int(n)].split('-')[0] for wi,n in zip(w, namei) if wi > 0])
-        element.extend([rev_names[int(n)].split('-')[1][0] for wi,n in zip(w, namei) if wi > 0])
-        prediction.extend([float(yi) for wi,yi in zip(w, yhat) if wi > 0])
-        shift.extend([float(yi) for wi,yi in zip(w, ytrue) if wi > 0])
-        count += 1
-        print(f'\rComputing...{count}', end='')
-    print('done')
+    
+    import MDAnalysis as md
+    u = md.Universe(struct_file)
 
-    print(model.count_params())
-    print(model.summary())
-
-
+    atoms, edges, nlist = nmrdata.parse.parse_universe(u, neighbor_number, embeddings) 
+    mask = np.ones_like(atoms)
+    inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
+                                                  tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
+    peaks = model([atoms, nlist, edges, inv_degree])
+    
     out = pd.DataFrame({
-        'element': element,
-        'y': shift,
-        'yhat': prediction,
-        'class': class_name,
-        'name': name
+        'index': np.arange(atoms.shape[0]),
+        'names': u.atoms.names,
+        'peaks': peaks        
     })
-    out.to_csv(f'{output}.csv', index=False)
+    out.to_csv(f'{output_csv}', index=False, float_format='%0.2f')
 
 
 @main.command()
