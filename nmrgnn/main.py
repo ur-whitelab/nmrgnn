@@ -29,6 +29,14 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
     return x, tf.stack([w * new_labels, y[:, 1], y[:,-1]], axis=1), w
 
 
+def _load_baseline():
+    from importlib_resources import files
+    import nmrgnn.models
+    fp = files(nmrgnn.models).joinpath(
+        'baseline')
+    return fp
+
+
 
 def load_data(tfrecords, validation, embeddings, scale=False):
     # load data and split into train/validation
@@ -141,13 +149,15 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
 
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
-@click.argument('model-file')
+@click.option('--model-file', default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--validation', default=0.0, help='relative size of validation. If non-zero, only validation will be saved')
 @click.option('--data-name', default='', help='Short name for data on table output')
 @click.option('--merge', default=None, help='Merge results with another markdown table')
 def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     '''Evaluate specific file'''    
     
+    if model_file is None:
+        model_file = _load_baseline()
     model_name = os.path.basename(model_file)
 
     model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
@@ -228,17 +238,21 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 @main.command()
 @click.argument('struct-file')
 @click.argument('output-csv')
-@click.argument('checkpoint')
+@click.option('--model-file', default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
-def eval_struct(struct_file, output_csv, checkpoint, neighbor_number):
+def eval_struct(struct_file, output_csv, model_file, neighbor_number):
     '''Evaluate specific file'''    
 
     import nmrdata.parse
     
     setup_optimizations()
 
-    model = nmrgnn.build_GNNModel(metrics=False)
-    model.load_weights(checkpoint)
+    if model_file is None:
+        model_file = _load_baseline()
+    model_name = os.path.basename(model_file)
+
+    loaded_model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
+
     embeddings = nmrdata.load_embeddings()
     
     import MDAnalysis as md
@@ -248,7 +262,16 @@ def eval_struct(struct_file, output_csv, checkpoint, neighbor_number):
     mask = np.ones_like(atoms)
     inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                   tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
+
+    # rebuild without metrics to avoid printing NaNs (because no labels)
+    model = nmrgnn.build_GNNModel(metrics=False)
+    # call once without weights to build
+    # could call build instead too
+    _ = model([atoms, nlist, edges, inv_degree])
+
+    model.set_weights(loaded_model.get_weights())
     peaks = model([atoms, nlist, edges, inv_degree])
+
     
     out = pd.DataFrame({
         'index': np.arange(atoms.shape[0]),
