@@ -149,7 +149,7 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
 
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
-@click.option('--model-file', default=None, help='Model file. If not provided, baseline will be used.')
+@click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--validation', default=0.0, help='relative size of validation. If non-zero, only validation will be saved')
 @click.option('--data-name', default='', help='Short name for data on table output')
 @click.option('--merge', default=None, help='Merge results with another markdown table')
@@ -238,7 +238,7 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 @main.command()
 @click.argument('struct-file')
 @click.argument('output-csv')
-@click.option('--model-file', default=None, help='Model file. If not provided, baseline will be used.')
+@click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
 def eval_struct(struct_file, output_csv, model_file, neighbor_number):
     '''Evaluate specific file'''    
