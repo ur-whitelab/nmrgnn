@@ -1,12 +1,15 @@
 import click
 import os
-import nmrdata
-import tensorflow as tf
-import kerastuner as kt
-import nmrgnn
+import logging
 import pandas as pd
 import numpy as np
 import pickle
+
+
+import tensorflow as tf
+import kerastuner as kt
+import nmrdata
+import nmrgnn
 
 
 @click.group()
@@ -247,7 +250,6 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     with open(merge, 'w') as f:
         f.write(results.to_markdown())
         f.write('\n')
-    
 
 @main.command()
 @click.argument('struct-file')
@@ -255,7 +257,7 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 @click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
 def eval_struct(struct_file, output_csv, model_file, neighbor_number):
-    '''Evaluate specific file'''    
+    '''Predict NMR chemical shifts with specific file'''    
 
     import nmrdata.parse
     
@@ -265,7 +267,7 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
         model_file = _load_baseline()
     model_name = os.path.basename(model_file)
 
-    loaded_model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
+    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
 
     embeddings = nmrdata.load_embeddings()
     
@@ -277,14 +279,7 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
     inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                   tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
 
-    # rebuild without metrics to avoid printing NaNs (because no labels)
-    model = nmrgnn.build_GNNModel(metrics=False)
-    # call once without weights to build
-    # could call build instead too
-    _ = model([atoms, nlist, edges, inv_degree])
-
-    model.set_weights(loaded_model.get_weights())
-    peaks = model([atoms, nlist, edges, inv_degree])
+    peaks = model((atoms, nlist, edges, inv_degree))
     peaks, confident = check_peaks(atoms.numpy(), peaks.numpy())
     
     out = pd.DataFrame({
