@@ -20,7 +20,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     #hp.Int('edge_fc_layers', 2, 6, step=1, default=3)
 
     hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=256)
-    hp.Choice('edge_feature_size', [1, 2, 3, 64], ordered=True, default=3)
+    hp.Choice('edge_feature_size', [1, 2, 3, 8, 64], ordered=True, default=3)
     hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
     hp.Int('mp_layers', 1, 6, step=1, default=4)
     hp.Int('fc_layers', 2, 6, step=1, default=4)

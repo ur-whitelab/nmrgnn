@@ -37,6 +37,20 @@ def _load_baseline():
     return fp
 
 
+def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
+    peak_standards = nmrdata.load_standards()    
+    confident = np.empty(atoms.shape[0], dtype=np.bool)
+    confident[:] = True
+    for i in range(len(atoms)):
+        ps = peak_standards[int(np.nonzero(atoms[i])[0])]        
+        if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > warn_sigma**2:
+            confident[i] = False
+        #if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > cutoff_sigma**2:
+        #    peaks[i] = np.nan
+    return peaks, confident
+            
+        
+
 
 def load_data(tfrecords, validation, embeddings, scale=False):
     # load data and split into train/validation
@@ -271,14 +285,15 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
 
     model.set_weights(loaded_model.get_weights())
     peaks = model([atoms, nlist, edges, inv_degree])
-
+    peaks, confident = check_peaks(atoms.numpy(), peaks.numpy())
     
     out = pd.DataFrame({
         'index': np.arange(atoms.shape[0]),
         'names': u.atoms.names,
-        'peaks': peaks        
+        'peaks': np.round(peaks, 2),
+        'confident': confident
     })
-    out.to_csv(f'{output_csv}', index=False, float_format='%0.2f')
+    out.to_csv(f'{output_csv}', index=False)
 
 
 @main.command()
