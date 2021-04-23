@@ -5,6 +5,7 @@ import unittest
 import nmrgnn
 import numpy as np
 import shutil
+import os
 
 
 class test_imports(unittest.TestCase):
@@ -223,3 +224,17 @@ class test_gnnmodel(unittest.TestCase):
         out_nodes = model(inputs)
         assert out_nodes.shape == (nodes.shape[0],)
         
+class test_library(unittest.TestCase):
+    def test_load_model(self):
+        model = nmrgnn.load_model()
+    def test_universe2graph(self):
+        import MDAnalysis as md
+        u = md.Universe(os.path.join(os.path.dirname(os.path.realpath(__file__)), '108M.pdb'))
+        x = nmrgnn.universe2graph(u)
+    def test_check_peaks(self):
+        model = nmrgnn.load_model()
+        import MDAnalysis as md
+        u = md.Universe(os.path.join(os.path.dirname(os.path.realpath(__file__)), '108M.pdb'))
+        x = nmrgnn.universe2graph(u)
+        peaks = model(x)
+        nmrgnn.check_peaks(x[0], peaks)

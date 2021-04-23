@@ -27,3 +27,5 @@ custom_things = [NameRMSD, NameCorr, MPLayer, NameLoss, NameCount,
                  RBFExpansion, EdgeFCBlock, MPBlock, FCBlock]
 custom_objects = {o.__name__: o for o in custom_things}
 del custom_things
+
+from .library import load_model, universe2graph, check_peaks
