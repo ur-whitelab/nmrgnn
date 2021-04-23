@@ -1,7 +1,79 @@
 # Graph neural network for predicting NMR chemical shifts
 
+This library is the code and a pre-trained model to predict NMR chemical shifts from protein structures and organic molecules. It relies on the [https://github.com/ur-whitelab/nmrdata](nmrdata) package which includes embeddings and NMR parameters.
 
+## Install
+
+From the root directory:
+
+```
+pip install -e .
+```
+
+## Command Line Usage
+
+Available commands are 
+
+* `nmrgnn eval-struct` to predict chemical shifts of structure via MDAnalysis library as coordinate reader
+* `nmrgnn train` to train a model
+* `nmrgnn hper` to tune hyperparameters
+* `nmrgnn eval-tfrecords` to evaluate model on records in format from `nmrdata` package
+
+### Predict NMR Chemical Shfits
+
+To predict NMR chemical shifts via the MDAnalysis library as a reader:
+
+```sh
+nmrgnn eval-struct [struct-file] [output-csv]
+```
+
+where `struct-file` could be a pdb file or equivalent. Example:
+
+```
+nmrgnn eval-struct 108M.pdb 108M-predicted.csv
+```
+
+## Library Usage
+
+Available functions are
+
+* `load_model` to load the included pre-trained model or specify a path to a trained model
+* `universe2graph` to convert an MDAnalysis universe into a tuple of atoms, neighbor list, edges, inverse_degree.
+* `check_peaks` to estimate validity of predicted peaks
+
+The example below predicts peaks and estimates (`True/False`) if the peaks are valid. Examples of why peaks are 
+not valid are that the elements are not inlcuded in training data (e.g., oxygen shifts) or unusual chemistries. 
+
+```py
+import MDAnalysis as md
+import nmrgnn
+
+model = nmrgnn.load_model()
+u = md.Universe('108M.pdb')
+g = nmrgnn.universe2graph(u)
+peaks = model(g)
+# check_peaks only uses first element of tuple (atom identities)
+confident = nmrgnn.check_peaks(g[0], peaks)
+```
+
+**You should not trust peaks coming from model without checking**
+
+## Citation
+
+Please cite [Predicting Chemical Shifts with Graph Neural Networks](https://doi.org/10.1101/2020.08.26.267971)
+
+```bibtex
+@article{yang2020predicting,
+  title     = {Predicting Chemical Shifts with Graph Neural Networks},
+  author    = {Yang, Ziyue and Chakraborty, Maghesree and White, Andrew D},
+  journal   = {bioRxiv},
+  year      = {2020},
+  publisher = {Cold Spring Harbor Laboratory}
+}
+```
 ## Model Performance
+
+Here is the included model performance on proteins (`P` prefix) and organic molecules (`Mol` prefix). `r` is correlation coefficient and `rmsd` is root mean square deviation. These results vary from paper values because they are evaluated on whole proteins instead of 256 atom fragments.
 
 |             |    N | baseline            |
 |:------------|-----:|:--------------------|

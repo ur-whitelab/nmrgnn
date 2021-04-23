@@ -1,12 +1,16 @@
 import click
 import os
-import nmrdata
-import tensorflow as tf
-import kerastuner as kt
-import nmrgnn
+import logging
 import pandas as pd
 import numpy as np
 import pickle
+
+
+import tensorflow as tf
+import kerastuner as kt
+import nmrdata
+import nmrgnn
+from .library import *
 
 
 @click.group()
@@ -27,81 +31,6 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
         labels - tf.reduce_sum(nodes * peak_avg, axis=1),
         tf.reduce_sum(nodes * peak_std, axis=1))
     return x, tf.stack([w * new_labels, y[:, 1], y[:,-1]], axis=1), w
-
-
-def _load_baseline():
-    from importlib_resources import files
-    import nmrgnn.models
-    fp = files(nmrgnn.models).joinpath(
-        'baseline')
-    return fp
-
-
-def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
-    peak_standards = nmrdata.load_standards()    
-    confident = np.empty(atoms.shape[0], dtype=np.bool)
-    confident[:] = True
-    for i in range(len(atoms)):
-        ps = peak_standards[int(np.nonzero(atoms[i])[0])]        
-        if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > warn_sigma**2:
-            confident[i] = False
-        #if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > cutoff_sigma**2:
-        #    peaks[i] = np.nan
-    return peaks, confident
-            
-        
-
-
-def load_data(tfrecords, validation, embeddings, scale=False):
-    # load data and split into train/validation
-
-
-    # need to load each tf record individually and split 
-    # so that we have equal representation in validation data
-    data = None
-    validation_data = None
-    print(f'Loading from {len(tfrecords)} files')
-    for tfr in tfrecords:
-        d = nmrdata.dataset(tfr, embeddings=embeddings, label_info=True)
-        # get size and split        
-        ds = len(list(d))
-        vs = int(validation * ds)
-        print(f'Loaded {tfr} and found {ds} records. Will keep {vs} for validation')
-        v = d.take(vs)
-        d = d.skip(vs)
-        if data is None:
-            data = d
-            validation_data = v
-        else:
-            data = data.concatenate(d)
-            validation_data = validation_data.concatenate(v)
-
-    if scale:
-        peak_standards = nmrdata.load_standards()
-        peak_std = np.ones(100, dtype=np.float32)
-        peak_avg = np.zeros(100, dtype=np.float32)
-        for k, v in peak_standards.items():
-            peak_std[k] = v[2]
-            peak_avg[k] = v[1]
-
-        train_data = data.map(
-            lambda *x: unstandardize_labels(*x, peak_std=peak_std, peak_avg=peak_avg)
-        )
-
-    # shuffle train at each iteration
-    train_data = data.shuffle(500, reshuffle_each_iteration=True)
-    return train_data.prefetch(tf.data.experimental.AUTOTUNE), validation_data.cache()
-
-
-def setup_optimizations():
-    #tf.debugging.enable_check_numerics()
-
-    tf.config.optimizer.set_jit(True)
-    from tensorflow.keras.mixed_precision import experimental as mixed_precision
-
-    #policy = mixed_precision.Policy('mixed_float16')
-    #mixed_precision.set_policy(policy)
-
 
 
 
@@ -171,7 +100,7 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     '''Evaluate specific file'''    
     
     if model_file is None:
-        model_file = _load_baseline()
+        model_file = load_baseline()
     model_name = os.path.basename(model_file)
 
     model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
@@ -247,7 +176,6 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     with open(merge, 'w') as f:
         f.write(results.to_markdown())
         f.write('\n')
-    
 
 @main.command()
 @click.argument('struct-file')
@@ -255,17 +183,17 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 @click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
 def eval_struct(struct_file, output_csv, model_file, neighbor_number):
-    '''Evaluate specific file'''    
+    '''Predict NMR chemical shifts with specific file'''    
 
     import nmrdata.parse
     
     setup_optimizations()
 
     if model_file is None:
-        model_file = _load_baseline()
+        model_file = load_baseline()
     model_name = os.path.basename(model_file)
 
-    loaded_model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
+    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
 
     embeddings = nmrdata.load_embeddings()
     
@@ -277,15 +205,8 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
     inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                   tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
 
-    # rebuild without metrics to avoid printing NaNs (because no labels)
-    model = nmrgnn.build_GNNModel(metrics=False)
-    # call once without weights to build
-    # could call build instead too
-    _ = model([atoms, nlist, edges, inv_degree])
-
-    model.set_weights(loaded_model.get_weights())
-    peaks = model([atoms, nlist, edges, inv_degree])
-    peaks, confident = check_peaks(atoms.numpy(), peaks.numpy())
+    peaks = model((atoms, nlist, edges, inv_degree))
+    confident = check_peaks(atoms, peaks)
     
     out = pd.DataFrame({
         'index': np.arange(atoms.shape[0]),
