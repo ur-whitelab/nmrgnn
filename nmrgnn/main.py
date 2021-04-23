@@ -206,7 +206,7 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
                                                   tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
 
     peaks = model((atoms, nlist, edges, inv_degree))
-    peaks, confident = check_peaks(atoms, peaks)
+    confident = check_peaks(atoms, peaks)
     
     out = pd.DataFrame({
         'index': np.arange(atoms.shape[0]),

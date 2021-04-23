@@ -27,6 +27,9 @@ def load_baseline():
 
 
 def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
+''' Estimates if peaks are valid using known distribution of training chemical shifts. Returns
+True/False where True means likely valid and False means likely invalid. 
+'''
     peak_standards = nmrdata.load_standards()    
     confident = np.empty(atoms.shape[0], dtype=np.bool)
     confident[:] = True
@@ -36,7 +39,7 @@ def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
             confident[i] = False
         #if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > cutoff_sigma**2:
         #    peaks[i] = np.nan
-    return peaks, confident
+    return confident
             
         
 
@@ -83,6 +86,8 @@ def load_data(tfrecords, validation, embeddings, scale=False):
 
 
 def load_model(model_file=None):
+    '''Load chemical shift prediction model. If no file given, the pre-trained model is loaded.
+    '''
     setup_optimizations()
 
     if model_file is None:
@@ -93,6 +98,10 @@ def load_model(model_file=None):
     return model
 
 def universe2graph(u, neighbor_number=16):
+    '''Convert universe into tuple of graph objects. Universe is presumed to be in Angstrom. Universe should have explicit hydrogens
+
+    Returns tuple with: atoms (one-hot element identity), nlist (neighbor list indices), edges (neighbor list distances), and inv_degree (inverse of degree for each atom). 
+    '''
     embeddings = nmrdata.load_embeddings()
     atoms, edges, nlist = nmrdata.parse.parse_universe(u, neighbor_number, embeddings) 
     mask = np.ones_like(atoms)
