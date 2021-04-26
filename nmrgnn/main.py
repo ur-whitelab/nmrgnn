@@ -104,6 +104,9 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
         model_file = load_baseline()
     model_name = os.path.basename(model_file)
 
+    if tfrecords is None or len(tfrecords) == 0:
+        raise ValueError('Must give input TFRecord files')
+
     model = tf.keras.models.load_model(
         model_file, custom_objects=nmrgnn.custom_objects)
     train_data, validation_data = load_data(tfrecords, validation, None)
@@ -238,6 +241,9 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
     '''Tune hyperparameters the model'''
+
+    if tfrecords is None or len(tfrecords) == 0:
+        raise ValueError('Must give input TFRecord files')
 
     setup_optimizations()
 
