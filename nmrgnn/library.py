@@ -5,7 +5,7 @@ import os
 
 import tensorflow as tf
 import nmrdata
-import nmrdata.parse
+import nmrdata
 import nmrgnn
 
 
@@ -105,7 +105,7 @@ def universe2graph(u, neighbor_number=16):
     Returns tuple with: atoms (one-hot element identity), nlist (neighbor list indices), edges (neighbor list distances), and inv_degree (inverse of degree for each atom).
     '''
     embeddings = nmrdata.load_embeddings()
-    atoms, edges, nlist = nmrdata.parse.parse_universe(
+    atoms, edges, nlist = nmrdata.parse_universe(
         u, neighbor_number, embeddings)
     mask = np.ones_like(atoms)
     inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,

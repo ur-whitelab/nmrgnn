@@ -17,6 +17,7 @@ from .library import *
 def main():
     pass
 
+
 @tf.function
 def unstandardize_labels(x, y, w, peak_std, peak_avg):
     # expand to be size of one-hot elements
@@ -30,8 +31,7 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
     new_labels = tf.math.divide_no_nan(
         labels - tf.reduce_sum(nodes * peak_avg, axis=1),
         tf.reduce_sum(nodes * peak_std, axis=1))
-    return x, tf.stack([w * new_labels, y[:, 1], y[:,-1]], axis=1), w
-
+    return x, tf.stack([w * new_labels, y[:, 1], y[:, -1]], axis=1), w
 
 
 @main.command()
@@ -67,20 +67,21 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
         monitor='val_loss',
         save_best_only=False)
     callbacks.append(model_checkpoint_callback)
-    
-    train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
 
-    # explicitly call model to get shapes defined 
+    train_data, validation_data = load_data(
+        tfrecords, validation, embeddings, scale=False)
+
+    # explicitly call model to get shapes defined
     for t in train_data:
-        x,y,m = t
+        x, y, m = t
         model(x)
         break
 
     results = model.fit(train_data, epochs=epochs, callbacks=callbacks,
-              validation_data=validation_data, validation_freq=1)
+                        validation_data=validation_data, validation_freq=1)
 
     model.save(name)
-    
+
     pfile = name + '-history-0.pb'
     i = 0
     while os.path.exists(pfile):
@@ -97,13 +98,14 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
 @click.option('--data-name', default='', help='Short name for data on table output')
 @click.option('--merge', default=None, help='Merge results with another markdown table')
 def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
-    '''Evaluate specific file'''    
-    
+    '''Evaluate specific file'''
+
     if model_file is None:
         model_file = load_baseline()
     model_name = os.path.basename(model_file)
 
-    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
+    model = tf.keras.models.load_model(
+        model_file, custom_objects=nmrgnn.custom_objects)
     train_data, validation_data = load_data(tfrecords, validation, None)
     if validation > 0:
         data = validation_data
@@ -117,24 +119,26 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     name = []
     class_name = []
     count = 0
-    rev_names = {v: k for k,v in embeddings['name'].items()}
-    for x,y,w in data:
+    rev_names = {v: k for k, v in embeddings['name'].items()}
+    for x, y, w in data:
         # get predictions
         yhat = model(x)
         ytrue = y[:, 0]
-        namei = y[:,1]#tf.cast(y[:,1], tf.int32)
-        name.extend([rev_names[int(n)].split('-')[1] for wi,n in zip(w, namei) if wi > 0])
-        class_name.extend([rev_names[int(n)].split('-')[0] for wi,n in zip(w, namei) if wi > 0])
-        element.extend([rev_names[int(n)].split('-')[1][0] for wi,n in zip(w, namei) if wi > 0])
-        prediction.extend([float(yi) for wi,yi in zip(w, yhat) if wi > 0])
-        shift.extend([float(yi) for wi,yi in zip(w, ytrue) if wi > 0])
+        namei = y[:, 1]  # tf.cast(y[:,1], tf.int32)
+        name.extend([rev_names[int(n)].split('-')[1]
+                     for wi, n in zip(w, namei) if wi > 0])
+        class_name.extend([rev_names[int(n)].split('-')[0]
+                           for wi, n in zip(w, namei) if wi > 0])
+        element.extend([rev_names[int(n)].split('-')[1][0]
+                        for wi, n in zip(w, namei) if wi > 0])
+        prediction.extend([float(yi) for wi, yi in zip(w, yhat) if wi > 0])
+        shift.extend([float(yi) for wi, yi in zip(w, ytrue) if wi > 0])
         count += 1
         print(f'\rComputing...{count}', end='')
     print('done')
 
     # I think this just prints (no need for print?)
     model.summary()
-
 
     out = pd.DataFrame({
         'element': element,
@@ -149,16 +153,20 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     results = dict()
     for e in np.unique(out.element):
         results[f'{data_name}-{e}-r'] = [len(out[out.element == e].y)]
-        results[f'{data_name}-{e}-r'].append(out[out.element == e].corr().iloc[0,1])
+        results[f'{data_name}-{e}-r'].append(
+            out[out.element == e].corr().iloc[0, 1])
     for n in np.unique(out.name):
         results[f'{data_name}-{n}-r'] = [len(out[out.name == n].y)]
-        results[f'{data_name}-{n}-r'].append(out[out.name == n].corr().iloc[0,1])
+        results[f'{data_name}-{n}-r'].append(
+            out[out.name == n].corr().iloc[0, 1])
     for e in np.unique(out.element):
         results[f'{data_name}-{e}-rmsd'] = [len(out[out.element == e].y)]
-        results[f'{data_name}-{e}-rmsd'].append(np.mean((out[out.element == e].yhat - out[out.element == e].y)**2))
+        results[f'{data_name}-{e}-rmsd'].append(
+            np.mean((out[out.element == e].yhat - out[out.element == e].y)**2))
     for n in np.unique(out.name):
         results[f'{data_name}-{n}-rmsd'] = [len(out[out.name == n].y)]
-        results[f'{data_name}-{n}-rmsd'].append(np.mean((out[out.name == n].yhat - out[out.name == n].y)**2))
+        results[f'{data_name}-{n}-rmsd'].append(
+            np.mean((out[out.name == n].yhat - out[out.name == n].y)**2))
     results = pd.DataFrame(results, index=['N', model_name])
     results = results.transpose()
 
@@ -168,14 +176,16 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
         # https://stackoverflow.com/a/60156036
         # read markdopwn table
         if os.path.exists(merge):
-            other = pd.read_table(merge, sep="|", header=0, index_col=1, skipinitialspace=True).dropna(axis=1, how='all').iloc[1:]
+            other = pd.read_table(merge, sep="|", header=0, index_col=1,
+                                  skipinitialspace=True).dropna(axis=1, how='all').iloc[1:]
             # remove whitespace in column names
-            other.columns = other.columns.str.replace(' ','')
+            other.columns = other.columns.str.replace(' ', '')
             results = pd.concat([results, other])
-        
+
     with open(merge, 'w') as f:
         f.write(results.to_markdown())
         f.write('\n')
+
 
 @main.command()
 @click.argument('struct-file')
@@ -183,31 +193,33 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 @click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
 def eval_struct(struct_file, output_csv, model_file, neighbor_number):
-    '''Predict NMR chemical shifts with specific file'''    
+    '''Predict NMR chemical shifts with specific file'''
 
-    import nmrdata.parse
-    
+    import nmrdata
+
     setup_optimizations()
 
     if model_file is None:
         model_file = load_baseline()
     model_name = os.path.basename(model_file)
 
-    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
+    model = tf.keras.models.load_model(
+        model_file, custom_objects=nmrgnn.custom_objects)
 
     embeddings = nmrdata.load_embeddings()
-    
+
     import MDAnalysis as md
     u = md.Universe(struct_file)
 
-    atoms, edges, nlist = nmrdata.parse.parse_universe(u, neighbor_number, embeddings) 
+    atoms, edges, nlist = nmrdata.parse_universe(
+        u, neighbor_number, embeddings)
     mask = np.ones_like(atoms)
     inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                   tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
 
     peaks = model((atoms, nlist, edges, inv_degree))
     confident = check_peaks(atoms, peaks)
-    
+
     out = pd.DataFrame({
         'index': np.arange(atoms.shape[0]),
         'names': u.atoms.names,
@@ -247,7 +259,8 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
             log_dir=tensorboard, update_freq='epoch', write_images=False, write_graph=False, histogram_freq=0, profile_batch=0)
         callbacks.append(tensorboard_callback)
 
-    train_data, validation_data = load_data(tfrecords, validation, embeddings, scale=False)
+    train_data, validation_data = load_data(
+        tfrecords, validation, embeddings, scale=False)
 
     tuner = kt.tuners.hyperband.Hyperband(
         nmrgnn.build_GNNModel,
@@ -263,14 +276,15 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
                  callbacks=callbacks)
     tuner.results_summary()
 
-    best_hps = tuner.get_best_hyperparameters(num_trials = 1)[0]
+    best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
     model = tuner.hypermodel.build(best_hps)
 
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2,
                                                      patience=4, min_lr=1e-6, verbose=1)
     callbacks = [reduce_lr]
 
-    model.fit(train_data, epochs=epochs, callbacks=callbacks, validation_data=validation_data)    
+    model.fit(train_data, epochs=epochs, callbacks=callbacks,
+              validation_data=validation_data)
 
 
 if __name__ == '__main__':
