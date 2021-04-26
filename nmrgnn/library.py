@@ -10,13 +10,14 @@ import nmrgnn
 
 
 def setup_optimizations():
-    #tf.debugging.enable_check_numerics()
+    # tf.debugging.enable_check_numerics()
 
     tf.config.optimizer.set_jit(True)
     from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
     #policy = mixed_precision.Policy('mixed_float16')
-    #mixed_precision.set_policy(policy)
+    # mixed_precision.set_policy(policy)
+
 
 def load_baseline():
     from importlib_resources import files
@@ -27,38 +28,36 @@ def load_baseline():
 
 
 def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
-''' Estimates if peaks are valid using known distribution of training chemical shifts. Returns
-True/False where True means likely valid and False means likely invalid. 
-'''
-    peak_standards = nmrdata.load_standards()    
+    ''' Estimates if peaks are valid using known distribution of training chemical shifts. Returns
+    True/False where True means likely valid and False means likely invalid.
+    '''
+    peak_standards = nmrdata.load_standards()
     confident = np.empty(atoms.shape[0], dtype=np.bool)
     confident[:] = True
     for i in range(len(atoms)):
-        ps = peak_standards[int(np.nonzero(atoms[i])[0])]        
+        ps = peak_standards[int(np.nonzero(atoms[i])[0])]
         if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > warn_sigma**2:
             confident[i] = False
-        #if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > cutoff_sigma**2:
+        # if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > cutoff_sigma**2:
         #    peaks[i] = np.nan
     return confident
-            
-        
 
 
 def load_data(tfrecords, validation, embeddings, scale=False):
     # load data and split into train/validation
 
-
-    # need to load each tf record individually and split 
+    # need to load each tf record individually and split
     # so that we have equal representation in validation data
     data = None
     validation_data = None
     print(f'Loading from {len(tfrecords)} files')
     for tfr in tfrecords:
         d = nmrdata.dataset(tfr, embeddings=embeddings, label_info=True)
-        # get size and split        
+        # get size and split
         ds = len(list(d))
         vs = int(validation * ds)
-        print(f'Loaded {tfr} and found {ds} records. Will keep {vs} for validation')
+        print(
+            f'Loaded {tfr} and found {ds} records. Will keep {vs} for validation')
         v = d.take(vs)
         d = d.skip(vs)
         if data is None:
@@ -77,7 +76,8 @@ def load_data(tfrecords, validation, embeddings, scale=False):
             peak_avg[k] = v[1]
 
         train_data = data.map(
-            lambda *x: unstandardize_labels(*x, peak_std=peak_std, peak_avg=peak_avg)
+            lambda *x: unstandardize_labels(*x,
+                                            peak_std=peak_std, peak_avg=peak_avg)
         )
 
     # shuffle train at each iteration
@@ -94,20 +94,20 @@ def load_model(model_file=None):
         model_file = _load_baseline()
     model_name = os.path.basename(model_file)
 
-    model = tf.keras.models.load_model(model_file, custom_objects=nmrgnn.custom_objects)
+    model = tf.keras.models.load_model(
+        model_file, custom_objects=nmrgnn.custom_objects)
     return model
+
 
 def universe2graph(u, neighbor_number=16):
     '''Convert universe into tuple of graph objects. Universe is presumed to be in Angstrom. Universe should have explicit hydrogens
 
-    Returns tuple with: atoms (one-hot element identity), nlist (neighbor list indices), edges (neighbor list distances), and inv_degree (inverse of degree for each atom). 
+    Returns tuple with: atoms (one-hot element identity), nlist (neighbor list indices), edges (neighbor list distances), and inv_degree (inverse of degree for each atom).
     '''
     embeddings = nmrdata.load_embeddings()
-    atoms, edges, nlist = nmrdata.parse.parse_universe(u, neighbor_number, embeddings) 
+    atoms, edges, nlist = nmrdata.parse.parse_universe(
+        u, neighbor_number, embeddings)
     mask = np.ones_like(atoms)
     inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                   tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
     return atoms, nlist, edges, inv_degree
-
-
-    
