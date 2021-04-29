@@ -21,6 +21,8 @@ Available commands are
 
 ### Predict NMR Chemical Shfits
 
+*Note: This model is trained on models with no solvent, so remove that before use.*
+
 To predict NMR chemical shifts via the MDAnalysis library as a reader:
 
 ```sh
@@ -42,7 +44,8 @@ Available functions are
 * `check_peaks` to estimate validity of predicted peaks
 
 The example below predicts peaks and estimates (`True/False`) if the peaks are valid. Examples of why peaks are 
-not valid are that the elements are not inlcuded in training data (e.g., oxygen shifts) or unusual chemistries. 
+not valid are that the elements are not inlcuded in training data (e.g., oxygen shifts) or unusual chemistries or
+you forgot to remove solvent. 
 
 ```py
 import MDAnalysis as md
