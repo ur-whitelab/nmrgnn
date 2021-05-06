@@ -27,5 +27,6 @@ setup(name='nmrgnn',
         [console_scripts]
         nmrgnn=nmrgnn.main:main
             ''',
-      package_data={'nmrgnn': ['models/*']}
+      include_package_data=True,
+      package_data={'nmrgnn': ['models/baseline/saved_model.pb', 'models/baseline/variables/variables*']}
       )
