@@ -1,6 +1,6 @@
 # Graph neural network for predicting NMR chemical shifts
 
-This library is the code and a pre-trained model to predict NMR chemical shifts from protein structures and organic molecules. It relies on the [https://github.com/ur-whitelab/nmrdata](nmrdata) package which includes embeddings and NMR parameters.
+This library is the code and a pre-trained model to predict NMR chemical shifts from protein structures and organic molecules. It relies on the [nmrdata](https://github.com/ur-whitelab/nmrdata) package which includes embeddings and NMR parameters.
 
 ## Install
 
