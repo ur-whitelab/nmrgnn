@@ -21,7 +21,8 @@ Available commands are
 
 ### Predict NMR Chemical Shfits
 
-*Note: This model is trained on models with no solvent, so remove that before use.*
+*Note: This model is trained on models with no solvent, so remove that before use. For small molecules, the model was trained mostly on water solutions. You should
+only expect agreement in relative chemical shifts between atoms depending on your solvent and reference.*
 
 To predict NMR chemical shifts via the MDAnalysis library as a reader:
 
