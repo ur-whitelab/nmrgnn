@@ -12,11 +12,11 @@ pip install nmrgnn@git+git://github.com/ur-whitelab/nmrgnn.git
 
 ## Command Line Usage
 
-Available commands are 
+Available commands are
 
 * `nmrgnn eval-struct` to predict chemical shifts of structure via MDAnalysis library as coordinate reader
 * `nmrgnn train` to train a model
-* `nmrgnn hper` to tune hyperparameters
+* `nmrgnn hyper` to tune hyperparameters
 * `nmrgnn eval-tfrecords` to evaluate model on records in format from `nmrdata` package
 
 ### Predict NMR Chemical Shfits
@@ -44,9 +44,9 @@ Available functions are
 * `universe2graph` to convert an MDAnalysis universe into a tuple of atoms, neighbor list, edges, inverse_degree.
 * `check_peaks` to estimate validity of predicted peaks
 
-The example below predicts peaks and estimates (`True/False`) if the peaks are valid. Examples of why peaks are 
+The example below predicts peaks and estimates (`True/False`) if the peaks are valid. Examples of why peaks are
 not valid are that the elements are not inlcuded in training data (e.g., oxygen shifts) or unusual chemistries or
-you forgot to remove solvent. 
+you forgot to remove solvent.
 
 ```py
 import MDAnalysis as md
@@ -80,7 +80,7 @@ Please cite [Predicting Chemical Shifts with Graph Neural Networks](https://doi.
 Here is the included model performance on proteins (`P` prefix) and organic molecules (`Mol` prefix). `r` is correlation coefficient and `rmsd` is root mean square deviation. These results vary from paper values because they are evaluated on whole proteins instead of 256 atom fragments.
 
 |             |    N | baseline            |
-|:------------|-----:|:--------------------|
+| :---------- | ---: | :------------------ |
 | Mol-H-r     |  307 | 0.9591749434360993  |
 | Mol-H-rmsd  |  307 | 0.39710393617916234 |
 | P-C-r       | 6701 | 0.864163            |

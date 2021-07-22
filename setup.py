@@ -20,7 +20,7 @@ setup(name='nmrgnn',
           'numpy',
           'pandas',
           'nmrdata@https://api.github.com/repos/ur-whitelab/nmrdata/tarball/master',
-          'keras-tuner'],
+          'keras-tuner==1.0.2'],
       test_suite='tests',
       zip_safe=True,
       entry_points='''
@@ -28,5 +28,6 @@ setup(name='nmrgnn',
         nmrgnn=nmrgnn.main:main
             ''',
       include_package_data=True,
-      package_data={'nmrgnn': ['models/baseline/saved_model.pb', 'models/baseline/variables/variables*']}
+      package_data={'nmrgnn': [
+          'models/baseline/saved_model.pb', 'models/baseline/variables/variables*']}
       )
