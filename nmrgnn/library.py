@@ -91,7 +91,7 @@ def load_model(model_file=None):
     setup_optimizations()
 
     if model_file is None:
-        model_file = _load_baseline()
+        model_file = load_baseline()
     model_name = os.path.basename(model_file)
 
     model = tf.keras.models.load_model(
