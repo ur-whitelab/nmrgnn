@@ -10,6 +10,10 @@ To install from this github repo directly:
 pip install nmrgnn@git+git://github.com/ur-whitelab/nmrgnn.git
 ```
 
+## Colab
+
+To use this package without installing, [use this colab](https://colab.research.google.com/github/ur-whitelab/nmrgnn/blob/master/colab/NMRPredictor.ipynb)
+
 ## Command Line Usage
 
 Available commands are
@@ -34,6 +38,17 @@ where `struct-file` could be a pdb file or equivalent. Example:
 
 ```
 nmrgnn eval-struct 108M.pdb 108M-predicted.csv
+```
+
+## Warning about Peaks
+
+If you receive a warning about peaks being poor, you likely have no hydrogens in your protein. You can add using online tools or use these commands to fix quickly by
+using [OpenMM](https://openmm.org/)
+
+```sh
+conda install -y -c omnia openmm
+pip install nmrdata[parse]@git+git://github.com/ur-whitelab/nmrgnn.git
+nmrparse clean-pdb [your-pdb] [your-pdb]-H.pdb
 ```
 
 ## Library Usage
@@ -64,15 +79,15 @@ confident = nmrgnn.check_peaks(g[0], peaks)
 
 ## Citation
 
-Please cite [Predicting Chemical Shifts with Graph Neural Networks](https://doi.org/10.1101/2020.08.26.267971)
+Please cite [Predicting Chemical Shifts with Graph Neural Networks](https://pubs.rsc.org/en/content/articlehtml/2021/sc/d1sc01895g)
 
 ```bibtex
-@article{yang2020predicting,
-  title     = {Predicting Chemical Shifts with Graph Neural Networks},
-  author    = {Yang, Ziyue and Chakraborty, Maghesree and White, Andrew D},
-  journal   = {bioRxiv},
-  year      = {2020},
-  publisher = {Cold Spring Harbor Laboratory}
+@article{yang2021predicting,
+  title={Predicting Chemical Shifts with Graph Neural Networks},
+  author={Yang, Ziyue and Chakraborty, Maghesree and White, Andrew D},
+  journal={Chemical Science},
+  year={2021},
+  publisher={Royal Society of Chemistry}
 }
 ```
 ## Model Performance

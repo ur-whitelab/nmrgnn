@@ -40,6 +40,10 @@ def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
             confident[i] = False
         # if ps[2] == 0 or (peaks[i] - ps[1])**2 / ps[2]**2 > cutoff_sigma**2:
         #    peaks[i] = np.nan
+    # do we have at least 75% confidence?
+    if np.sum(confident) / confident.shape[0] < 0.75:
+        raise Warning(
+            'Your peaks look awful. Likely solvent or missing hydrogens or bad units. Check README for suggestions')
     return confident
 
 
