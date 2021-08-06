@@ -1,4 +1,5 @@
 # Graph neural network for predicting NMR chemical shifts
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ur-whitelab/nmrgnn/blob/master/colab/NMRPredictor.ipynb)
 
 This library is the code and a pre-trained model to predict NMR chemical shifts from protein structures and organic molecules. It relies on the [nmrdata](https://github.com/ur-whitelab/nmrdata) package which includes embeddings and NMR parameters.
 
