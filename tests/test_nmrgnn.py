@@ -8,12 +8,12 @@ import shutil
 import os
 
 
-class test_imports(unittest.TestCase):
+class TestImports(unittest.TestCase):
     def test_importable(self):
         pass
 
 
-class test_mpl(unittest.TestCase):
+class TestMPL(unittest.TestCase):
 
     def test_mpl_build(self):
         # Nodes ->  5 of them, each with features 16
@@ -51,18 +51,17 @@ class test_mpl(unittest.TestCase):
         new_nodes = mpl([nodes, nlist, edges, inv_degree])
         assert new_nodes.shape == nodes.shape
 
-
     def test_mpl_call(self):
         pass
 
 
-class test_gnnhypers(unittest.TestCase):
+class TestGNNHypers(unittest.TestCase):
 
     def test_gnnhypers_setup(self):
         pass
 
 
-class test_edge_fc_block(unittest.TestCase):
+class TestEdgeFCBlock(unittest.TestCase):
 
     def test_edgeFCBlock_call(self):
         model = nmrgnn.build_GNNModel()
@@ -74,7 +73,7 @@ class test_edge_fc_block(unittest.TestCase):
         assert edge_output.shape[:-1] == edge_input.shape[:-1]
 
 
-class test_mp_block(unittest.TestCase):
+class TestMPBlock(unittest.TestCase):
 
     def test_mpBlock_call(self):
         model = nmrgnn.build_GNNModel()
@@ -97,7 +96,7 @@ class test_mp_block(unittest.TestCase):
         assert out_nodes.shape == nodes.shape
 
 
-class test_fc_block(unittest.TestCase):
+class TestFCBlock(unittest.TestCase):
 
     def test_fcBlock_call(self):
         model = nmrgnn.build_GNNModel()
@@ -117,7 +116,6 @@ class TestMetrics(unittest.TestCase):
         nm = nmrgnn.NameRMSD(label_idx)
         y = (tf.zeros((5,)), tf.constant([4., 3, 3, 2, 4]), tf.ones(5,))
         y = tf.stack([*y], axis=1)
-        print(tf.cast(y[:, 1:2], tf.int32))
         y_pred = np.zeros((5,))
         y_pred[1] = 5
         nm.update_state(y, y_pred)
@@ -185,7 +183,7 @@ class TestSerialize(unittest.TestCase):
             shutil.rmtree('gnn_model_load_test')
 
 
-class test_gnnmodel(unittest.TestCase):
+class TestGNNModel(unittest.TestCase):
 
     def test_loss(self):
         y = (tf.zeros((5,)), tf.constant([4., 3, 3, 2, 4]))
@@ -223,18 +221,37 @@ class test_gnnmodel(unittest.TestCase):
 
         out_nodes = model(inputs)
         assert out_nodes.shape == (nodes.shape[0],)
-        
-class test_library(unittest.TestCase):
+
+
+class TestLibrary(unittest.TestCase):
     def test_load_model(self):
         model = nmrgnn.load_model()
+
     def test_universe2graph(self):
         import MDAnalysis as md
-        u = md.Universe(os.path.join(os.path.dirname(os.path.realpath(__file__)), '108M.pdb'))
+        u = md.Universe(os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), '108M.pdb'))
         x = nmrgnn.universe2graph(u)
+
     def test_check_peaks(self):
         model = nmrgnn.load_model()
         import MDAnalysis as md
-        u = md.Universe(os.path.join(os.path.dirname(os.path.realpath(__file__)), '108M.pdb'))
+        u = md.Universe(os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), '108M.pdb'))
         x = nmrgnn.universe2graph(u)
         peaks = model(x)
         nmrgnn.check_peaks(x[0], peaks)
+
+    def test_traj_analysis(self):
+        model = nmrgnn.load_model()
+        import MDAnalysis as md
+        u = md.Universe(os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), '7lgi.pdb.gz'))
+        p1 = None
+        for ts in u.trajectory:
+            x = nmrgnn.universe2graph(u)
+            peaks = model(x)
+            if p1 is None:
+                p1 = peaks
+            nmrgnn.check_peaks(x[0], peaks)
+        assert np.mean((peaks - p1)**2) > 1
