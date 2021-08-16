@@ -221,7 +221,7 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number):
     for i, ts in enumerate(u.trajectory):
         # i > 0 -> means only warn on 1st iter
         atoms, edges, nlist = nmrdata.parse_universe(
-            u, neighbor_number, embeddings, i > 0)
+            u, neighbor_number, embeddings, warn=i == 0)
         inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                       tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
 
