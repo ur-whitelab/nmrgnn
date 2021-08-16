@@ -191,12 +191,15 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 
 
 @main.command()
-@click.argument('struct-file')
+@click.argument('struct-files', nargs=-1, type=click.Path(exists=True))
 @click.argument('output-csv')
 @click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
-def eval_struct(struct_file, output_csv, model_file, neighbor_number):
+def eval_struct(struct_files, output_csv, model_file, neighbor_number):
     '''Predict NMR chemical shifts with specific file'''
+
+    if len(struct_files) == 0:
+        raise ValueError('Must pass at least on structure file')
 
     import nmrdata
 
@@ -212,23 +215,32 @@ def eval_struct(struct_file, output_csv, model_file, neighbor_number):
     embeddings = nmrdata.load_embeddings()
 
     import MDAnalysis as md
-    u = md.Universe(struct_file)
+    u = md.Universe(*struct_files)
+    out = None
 
-    atoms, edges, nlist = nmrdata.parse_universe(
-        u, neighbor_number, embeddings)
-    mask = np.ones_like(atoms)
-    inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
-                                                  tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
+    for i, ts in enumerate(u.trajectory):
+        # i > 0 -> means only warn on 1st iter
+        atoms, edges, nlist = nmrdata.parse_universe(
+            u, neighbor_number, embeddings, i > 0)
+        inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
+                                                      tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
 
-    peaks = model((atoms, nlist, edges, inv_degree))
-    confident = check_peaks(atoms, peaks)
+        peaks = model((atoms, nlist, edges, inv_degree))
+        confident = check_peaks(atoms, peaks)
 
-    out = pd.DataFrame({
-        'index': np.arange(atoms.shape[0]),
-        'names': u.atoms.names,
-        'peaks': np.round(peaks, 2),
-        'confident': confident
-    })
+        data = pd.DataFrame({
+            'index': np.arange(atoms.shape[0]),
+            'names': u.atoms.names,
+            'peaks': np.round(peaks, 2),
+            'confident': confident,
+            'time': np.repeat(ts.time, atoms.shape[0]),
+            'frame': np.repeat(ts.frame, atoms.shape[0])
+        })
+
+        if out is None:
+            out = data
+        else:
+            out = pd.concat((out, data))
     out.to_csv(f'{output_csv}', index=False)
 
 
