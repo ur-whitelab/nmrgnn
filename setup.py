@@ -39,7 +39,6 @@ setup(name='nmrgnn',
           "License :: OSI Approved :: MIT License",
           "Operating System :: OS Independent",
           "Topic :: Scientific/Engineering :: Bio-Informatics",
-          "Topic :: Scientific/Engineering :: Artificial Intelligence",
-          "Typing :: Typed"
+          "Topic :: Scientific/Engineering :: Artificial Intelligence"
       ]
       )
