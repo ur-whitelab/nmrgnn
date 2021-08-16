@@ -5,10 +5,10 @@ This library is the code and a pre-trained model to predict NMR chemical shifts 
 
 ## Install
 
-To install from this github repo directly:
+Install using pip
 
 ```sh
-pip install nmrgnn@git+git://github.com/ur-whitelab/nmrgnn.git
+pip install nmrgnn
 ```
 
 ## Colab
