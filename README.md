@@ -78,6 +78,25 @@ confident = nmrgnn.check_peaks(g[0], peaks)
 
 **You should not trust peaks coming from model without checking**
 
+### Analyzing Trajectories
+
+Here is an example for analzying a trajectory
+
+```py
+import MDAnalysis as md
+import nmrgnn
+
+model = nmrgnn.load_model()
+
+u = md.Universe(PATH_TO_FILES)
+for ts in u.trajectory:
+    x = nmrgnn.universe2graph(u)
+    peaks = model(x)
+    nmrgnn.check_peaks(x[0], peaks)    
+    # do something with peaks
+    ....
+```
+
 ## Citation
 
 Please cite [Predicting Chemical Shifts with Graph Neural Networks](https://pubs.rsc.org/en/content/articlehtml/2021/sc/d1sc01895g)
