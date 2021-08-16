@@ -4,9 +4,11 @@ from setuptools import setup
 
 exec(open('nmrgnn/version.py').read())
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
 setup(name='nmrgnn',
       version=__version__,
-      scripts=glob(os.path.join('scripts', '*')),
       description='Chemical shift predictor',
       author='Ziyue Yang, Andrew White',
       author_email='andrew.white@rochester.edu',
@@ -29,5 +31,15 @@ setup(name='nmrgnn',
             ''',
       include_package_data=True,
       package_data={'nmrgnn': [
-          'models/baseline/saved_model.pb', 'models/baseline/variables/variables*']}
+          'models/baseline/saved_model.pb', 'models/baseline/variables/variables*']},
+      long_description=long_description,
+      long_description_content_type="text/markdown",
+      classifiers=[
+          "Programming Language :: Python :: 3",
+          "License :: OSI Approved :: MIT License",
+          "Operating System :: OS Independent",
+          "Topic :: Scientific/Engineering :: Bio-Informatics",
+          "Topic :: Scientific/Engineering :: Artificial Intelligence",
+          "Typing :: Typed"
+      ]
       )
