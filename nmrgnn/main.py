@@ -215,19 +215,28 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number):
     embeddings = nmrdata.load_embeddings()
 
     import MDAnalysis as md
+    import tqdm, time
     u = md.Universe(*struct_files)
     out = None
-
+    N = len(u.trajectory)
+    timing = {'MDAnalysis': 0, 'Model Inference': 0, 'Parsing': 0}
+    pbar = None
+    if N > 1:
+        pbar = tqdm.tqdm(total=N)
     for i, ts in enumerate(u.trajectory):
         # i > 0 -> means only warn on 1st iter
+        t = time.time_ns()
         atoms, edges, nlist = nmrdata.parse_universe(
             u, neighbor_number, embeddings, warn=i == 0)
         inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                       tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
-
+        timing['MDAnalysis'] += time.time_ns() - t
+        t = time.time_ns()
         peaks = model((atoms, nlist, edges, inv_degree))
         confident = check_peaks(atoms, peaks)
 
+        timing['Model Inference'] += time.time_ns() - t
+        t = time.time_ns()
         data = pd.DataFrame({
             'index': np.arange(atoms.shape[0]),
             'names': u.atoms.names,
@@ -241,7 +250,14 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number):
             out = data
         else:
             out = pd.concat((out, data))
+
+        timing['Parsing'] += time.time_ns() - t
+        t = time.time_ns()
+        if pbar:
+            pbar.set_description('|'.join([f'{k}:{v/10**9:5.2f}s' for k,v in timing.items()]))
+            pbar.update()
     out.to_csv(f'{output_csv}', index=False)
+    print('|'.join([f'{k}:{v/10**9:5.2f}s' for k,v in timing.items()]))
 
 
 @main.command()
