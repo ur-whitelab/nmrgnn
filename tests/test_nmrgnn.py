@@ -134,7 +134,7 @@ class TestMetrics(unittest.TestCase):
         np.testing.assert_allclose(nm.result(), np.sqrt(5**2 / 3))
 
         with self.assertRaises(ValueError):
-            nm = nmrgnn.type_mask('LYS\-.*', embeddings, regex=True)
+            nm = nmrgnn.type_mask(r'LYS\-.*', embeddings, regex=True)
 
 
 class TestSerialize(unittest.TestCase):
