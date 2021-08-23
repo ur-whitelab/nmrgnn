@@ -17,7 +17,7 @@ setup(name='nmrgnn',
       packages=['nmrgnn'],
       install_requires=[
           'tensorflow >= 2.3',
-          'MDAnalysis',
+          'MDAnalysis < 2',
           'click',
           'numpy',
           'pandas', 'tqdm',
