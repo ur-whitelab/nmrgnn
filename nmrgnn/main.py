@@ -195,7 +195,8 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 @click.argument('output-csv')
 @click.option('--model-file', type=click.Path(exists=True), default=None, help='Model file. If not provided, baseline will be used.')
 @click.option('--neighbor-number', default=16, help='The model specific size of neighbor lists')
-def eval_struct(struct_files, output_csv, model_file, neighbor_number):
+@click.option('--stride', default=1, help='Stride for reading trajectory, if multiple frames are present')
+def eval_struct(struct_files, output_csv, model_file, neighbor_number, stride):
     '''Predict NMR chemical shifts with specific file'''
 
     if len(struct_files) == 0:
@@ -215,15 +216,25 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number):
     embeddings = nmrdata.load_embeddings()
 
     import MDAnalysis as md
-    import tqdm, time
+    import tqdm
+    import time
     u = md.Universe(*struct_files)
     out = None
     N = len(u.trajectory)
-    timing = {'MDAnalysis': 0, 'Model Inference': 0, 'Parsing': 0}
+
+    # add useful info
+    gpus = tf.config.list_physical_devices('GPU')
+    gpu_msg = 'GPUs: None'
+    if len(gpus) > 0:
+        gpu_msg = f'GPUs: {len(gpus)}'
+
+    inf_msg = f'Model Inference ({gpu_msg})'
+    timing = {'MDAnalysis': 0, inf_msg: 0, 'Parsing': 0}
+
     pbar = None
     if N > 1:
         pbar = tqdm.tqdm(total=N)
-    for i, ts in enumerate(u.trajectory):
+    for i, ts in enumerate(u.trajectory[::stride]):
         # i > 0 -> means only warn on 1st iter
         t = time.time_ns()
         atoms, edges, nlist = nmrdata.parse_universe(
@@ -235,10 +246,12 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number):
         peaks = model((atoms, nlist, edges, inv_degree))
         confident = check_peaks(atoms, peaks)
 
-        timing['Model Inference'] += time.time_ns() - t
+        timing[inf_msg] += time.time_ns() - t
         t = time.time_ns()
         data = pd.DataFrame({
             'index': np.arange(atoms.shape[0]),
+            'residues': u.atoms.resnames,
+            'resids': u.atoms.resids,
             'names': u.atoms.names,
             'peaks': np.round(peaks, 2),
             'confident': confident,
@@ -254,10 +267,11 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number):
         timing['Parsing'] += time.time_ns() - t
         t = time.time_ns()
         if pbar:
-            pbar.set_description('|'.join([f'{k}:{v/10**9:5.2f}s' for k,v in timing.items()]))
-            pbar.update()
+            pbar.set_description(
+                '|'.join([f'{k}:{v/10**9:5.2f}s' for k, v in timing.items()]))
+            pbar.update(stride)
     out.to_csv(f'{output_csv}', index=False)
-    print('|'.join([f'{k}:{v/10**9:5.2f}s' for k,v in timing.items()]))
+    print('|'.join([f'{k}:{v/10**9:5.2f}s' for k, v in timing.items()]))
 
 
 @main.command()
