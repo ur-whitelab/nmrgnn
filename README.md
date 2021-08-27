@@ -41,6 +41,14 @@ where `struct-file` could be a pdb file or equivalent. Example:
 nmrgnn eval-struct 108M.pdb 108M-predicted.csv
 ```
 
+For a trajectory, try
+
+```
+nmrgnn eval-struct 108M.pdb 108M.trr 108M-predicted.csv --stride 5
+```
+
+which computes shifts every 5 frames. 
+
 ## Warning about Peaks
 
 If you receive a warning about peaks being poor, you likely have no hydrogens in your protein. You can add using online tools or use these commands to fix quickly by
