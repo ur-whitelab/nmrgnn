@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import pickle
 
-
 import tensorflow as tf
 import kerastuner as kt
 import nmrdata
@@ -224,12 +223,12 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number, stride):
 
     # add useful info
     gpus = tf.config.list_physical_devices('GPU')
-    gpu_msg = 'GPUs: None'
+    gpu_msg = 'GPUs\U0001F916: None'
     if len(gpus) > 0:
-        gpu_msg = f'GPUs: {len(gpus)}'
+        gpu_msg = f'GPUs\U0001F916: {len(gpus)}'
 
-    inf_msg = f'Model Inference ({gpu_msg})'
-    timing = {'MDAnalysis': 0, inf_msg: 0, 'Parsing': 0}
+    inf_msg = f'Model Inference\U0001F47B ({gpu_msg})'
+    timing = {'MDAnalysis\U0001F47E': 0, inf_msg: 0, 'Parsing\U0001F4A8': 0}
 
     pbar = None
     if N > 1:
@@ -241,7 +240,7 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number, stride):
             u, neighbor_number, embeddings, warn=i == 0)
         inv_degree = tf.squeeze(tf.math.divide_no_nan(1.,
                                                       tf.reduce_sum(tf.cast(nlist > 0, tf.float32), axis=1)))
-        timing['MDAnalysis'] += time.time_ns() - t
+        timing['MDAnalysis\U0001F47E'] += time.time_ns() - t
         t = time.time_ns()
         peaks = model((atoms, nlist, edges, inv_degree))
         confident = check_peaks(atoms, peaks)
@@ -264,7 +263,7 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number, stride):
         else:
             out = pd.concat((out, data))
 
-        timing['Parsing'] += time.time_ns() - t
+        timing['Parsing\U0001F4A8'] += time.time_ns() - t
         t = time.time_ns()
         if pbar:
             pbar.set_description(
@@ -272,6 +271,7 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number, stride):
             pbar.update(stride)
     out.to_csv(f'{output_csv}', index=False)
     print('|'.join([f'{k}:{v/10**9:5.2f}s' for k, v in timing.items()]))
+    print('Hooray!\U0001F600\U0001F604\U0001F606\U0001F609You can now find your result in 'f'{output_csv}')
 
 
 @main.command()
