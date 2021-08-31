@@ -269,9 +269,13 @@ def eval_struct(struct_files, output_csv, model_file, neighbor_number, stride):
             pbar.set_description(
                 '|'.join([f'{k}:{v/10**9:5.2f}s' for k, v in timing.items()]))
             pbar.update(stride)
+            pbar.close()
+        else:
+            print(
+                '|'.join([f'{k}:{v/10**9:5.2f}s' for k, v in timing.items()]))
     out.to_csv(f'{output_csv}', index=False)
-    print('|'.join([f'{k}:{v/10**9:5.2f}s' for k, v in timing.items()]))
-    print('Hooray!\U0001F600\U0001F604\U0001F606\U0001F609You can now find your result in 'f'{output_csv}')
+    print(
+        'Hooray!\U0001F600\U0001F604\U0001F606\U0001F609You can now find your result in 'f'{output_csv}')
 
 
 @main.command()
