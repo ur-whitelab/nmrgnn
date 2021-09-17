@@ -56,7 +56,7 @@ using [OpenMM](https://openmm.org/)
 
 ```sh
 conda install -y -c omnia openmm
-pip install nmrdata[parse]@git+git://github.com/ur-whitelab/nmrgnn.git
+pip install nmrgnn-data[parse]
 nmrparse clean-pdb [your-pdb] [your-pdb]-H.pdb
 ```
 
