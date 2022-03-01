@@ -111,9 +111,12 @@ Please cite [Predicting Chemical Shifts with Graph Neural Networks](https://pubs
 
 ```bibtex
 @article{yang2021predicting,
-  title={Predicting Chemical Shifts with Graph Neural Networks},
+  title={Predicting chemical shifts with graph neural networks},
   author={Yang, Ziyue and Chakraborty, Maghesree and White, Andrew D},
-  journal={Chemical Science},
+  journal={Chemical science},
+  volume={12},
+  number={32},
+  pages={10802--10809},
   year={2021},
   publisher={Royal Society of Chemistry}
 }
