@@ -19,9 +19,11 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     #hp.Int('fc_layers', 2, 6, step=1, default=3)
     #hp.Int('edge_fc_layers', 2, 6, step=1, default=3)
 
-    hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=256)
+    hp.Choice('atom_feature_size', [
+              32, 64, 128, 256], ordered=True, default=256)
     hp.Choice('edge_feature_size', [1, 2, 3, 8, 64], ordered=True, default=3)
-    hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=128)
+    hp.Choice('edge_hidden_size', [16, 32, 64,
+                                   128, 256], ordered=True, default=128)
     hp.Int('mp_layers', 1, 6, step=1, default=4)
     hp.Int('fc_layers', 2, 6, step=1, default=4)
     hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
@@ -51,8 +53,6 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     corr_loss = NameLoss(label_idx, s=loss_balance)
     loss = corr_loss
 
-
-
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_rmsd = NameRMSD(label_idx, name='h_rmsd')
     label_idx = type_mask(r'.*\-N.*', embeddings, regex=True)
@@ -72,18 +72,17 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     label_idx = type_mask(r'.*\-H$', embeddings, regex=True)
     hn_r = NameCorr(label_idx, name='hn_r')
     label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
-    ha_r = NameCorr(label_idx, name='ha_r')    
+    ha_r = NameCorr(label_idx, name='ha_r')
     label_idx = type_mask(r'.*\-HA.*', embeddings, regex=True)
-    ha_r = NameCorr(label_idx, name='ha_r')    
+    ha_r = NameCorr(label_idx, name='ha_r')
     ha_count = NameCount(label_idx, name='avg_ha_count')
 
     label_idx = type_mask(r'DFT.*', embeddings, regex=True)
-    dft_r = NameCorr(label_idx, name='dft_r')    
+    dft_r = NameCorr(label_idx, name='dft_r')
     dft_count = NameCount(label_idx, name='avg_dft_count')
     label_idx = type_mask(r'MB.*', embeddings, regex=True)
-    mb_r = NameCorr(label_idx, name='mb_r')    
+    mb_r = NameCorr(label_idx, name='mb_r')
     mb_count = NameCount(label_idx, name='avg_mb_count')
-
 
     model.compile(optimizer=optimizer,
                   loss=loss,
@@ -99,7 +98,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
                       hn_r,
                       ha_r, ha_count,
                       mb_r, mb_count,
-                      dft_r, dft_count             
+                      dft_r, dft_count
                   ] if metrics else None
                   )
     return model
@@ -110,15 +109,15 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
 class EdgeFCBlock(keras.layers.Layer):
     def __init__(self, hypers):
         super(EdgeFCBlock, self).__init__(name='edge-fc-block')
-        
-        # add l1 regularizer to 
-        # input, so that we 
+
+        # add l1 regularizer to
+        # input, so that we
         # zero-out unused distance features
         # off until I know I need it
         self.edge_fc = [keras.layers.Dense(
-            hypers.get('edge_hidden_size'), 
+            hypers.get('edge_hidden_size'),
             activation=hypers.get('fc_activation'),
-            #kernel_regularizer='l1',
+            # kernel_regularizer='l1',
         )]
         # stack Dense Layers as a block
         for _ in range(hypers.get('edge_fc_layers') - 2):
@@ -151,7 +150,7 @@ class MPBlock(keras.layers.Layer):
         self.mp = []
         # stack Message Passing Layers as a block
         for _ in range(hypers.get('mp_layers')):
-            self.mp.append(MPLayer(hypers.get('mp_activation')))
+            self.mp.append(MP2Layer(hypers.get('mp_activation')))
 
         self.hypers = hypers
 
@@ -238,7 +237,8 @@ class GNNModel(keras.Model):
         num_elem = input_shapes[0][-1]
         self.out_layer = tf.keras.layers.Dense(num_elem)
         # they are already one-hots, so no need to use proper embedding
-        self.embed_layer = tf.keras.layers.Dense(self.embed_dim, use_bias = False)
+        self.embed_layer = tf.keras.layers.Dense(
+            self.embed_dim, use_bias=False)
         self.peak_std = self.peak_std[:num_elem]
         self.peak_avg = self.peak_avg[:num_elem]
 
@@ -246,7 +246,7 @@ class GNNModel(keras.Model):
         # node_input should be 1 hot!
         # as written here, edge input is distance ONLY
         # modify if you want to include type informaton
-        node_input, nlist_input, edge_input, inv_degree = inputs        
+        node_input, nlist_input, edge_input, inv_degree = inputs
 
         edge_mask = tf.cast(edge_input > 0, tf.float32)[..., tf.newaxis]
 
@@ -266,9 +266,9 @@ class GNNModel(keras.Model):
         if self.dropout is not None:
             out_nodes = self.dropout(out_nodes, training)
         full_peaks = self.out_layer(out_nodes)
-        #if training:
+        # if training:
         #    peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
-        #else:            
+        # else:
         peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
                               node_input * self.peak_avg, axis=-1)
         return peaks

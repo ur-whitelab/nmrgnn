@@ -47,7 +47,7 @@ def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
     return confident
 
 
-def load_data(tfrecords, validation, embeddings, scale=False):
+def load_data(tfrecords, validation, embeddings, sample=True):
     # load data and split into train/validation
 
     # need to load each tf record individually and split
@@ -65,27 +65,25 @@ def load_data(tfrecords, validation, embeddings, scale=False):
         v = d.take(vs)
         d = d.skip(vs)
         if data is None:
-            data = d
-            validation_data = v
+            if sample:
+                data = [d]
+                validation_data = [v]
+            else:
+                data = d
+                validation_data = v
         else:
-            data = data.concatenate(d)
-            validation_data = validation_data.concatenate(v)
-
-    if scale:
-        peak_standards = nmrdata.load_standards()
-        peak_std = np.ones(100, dtype=np.float32)
-        peak_avg = np.zeros(100, dtype=np.float32)
-        for k, v in peak_standards.items():
-            peak_std[k] = v[2]
-            peak_avg[k] = v[1]
-
-        train_data = data.map(
-            lambda *x: unstandardize_labels(*x,
-                                            peak_std=peak_std, peak_avg=peak_avg)
-        )
-
-    # shuffle train at each iteration
-    train_data = data.shuffle(500, reshuffle_each_iteration=True)
+            if sample:
+                data += [d]
+                validation_data += [v]
+            else:
+                data = data.concatenate(d)
+                validation_data = validation_data.concatenate(v)
+    if sample:
+        train_data = tf.data.Dataset.sample_from_datasets(data)
+        validation_data = tf.data.Dataset.sample_from_datasets(validation_data)
+    else:
+        # shuffle train at each iteration
+        train_data = data.shuffle(500, reshuffle_each_iteration=True)
     return train_data.prefetch(tf.data.experimental.AUTOTUNE), validation_data.cache()
 
 

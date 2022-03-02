@@ -45,7 +45,51 @@ class MPLayer(keras.layers.Layer):
             self.add_loss(self.mpl_regularizer(self.w))
         return out
 
+
+class MP2Layer(keras.layers.Layer):
+    def __init__(self, activation=None, kernel_regularizer=None, name='MP2Layer', **kwargs):
+        super(MP2Layer, self).__init__(name=name, **kwargs)
+        self.activation = tf.keras.activations.get(activation)
+        self.mpl_regularizer = tf.keras.regularizers.get(kernel_regularizer)
+
+    def build(self, input_shape):
+        node_feature_shape, _, edge_feature_shape, _ = input_shape
+        self.w = self.add_weight(
+            shape=(
+                node_feature_shape[-1], node_feature_shape[-1] + edge_feature_shape[-1]),
+            trainable=True,
+            name='w'
+        )
+
+    def get_config(self):
+        config = super(MP2Layer, self).get_config()
+        config.update(
+            {'activation': self.activation})
+        return config
+
+    def call(self, inputs):
+        # node ->  N x node_feature
+        # nlist -> N x NN
+        # edges -> N x NN x edge_features
+        # inv_degree -> N
+        nodes, nlist, edges, inv_degree = inputs
+        # Get node matrix sliced by nlist -> N x NN x node_features
+        sliced_features = tf.gather(nodes, nlist)
+        # i -> atom
+        # j -> neighbor
+        # n - > feature input
+        # m -> atom atom feature output
+        stacked = tf.concat([edges, sliced_features], axis=-1)
+        reduced = tf.einsum('ijn,mn,i->im', stacked, self.w, inv_degree)
+        out = self.activation(reduced)
+        # output -> N x D number of atoms x node feature dimension
+        if self.mpl_regularizer is not None:
+            self.add_loss(self.mpl_regularizer(self.w))
+        return out
+
+
 class AMPLayer(keras.layers.Layer):
+    # attention MP layer
     def __init__(self, activation=None, kernel_regularizer=None, name='AMPLayer', **kwargs):
         super(AMPLayer, self).__init__(name=name, **kwargs)
         self.activation = tf.keras.activations.get(activation)
@@ -72,7 +116,6 @@ class AMPLayer(keras.layers.Layer):
             name='wv'
         )
 
-
     def get_config(self):
         config = super(AMPLayer, self).get_config()
         config.update(
@@ -98,6 +141,7 @@ class AMPLayer(keras.layers.Layer):
         if self.mpl_regularizer is not None:
             self.add_loss(self.mpl_regularizer(self.w))
         return out
+
 
 class RBFExpansion(tf.keras.layers.Layer):
     R''' A  continuous-filter convolutional radial basis filter input from

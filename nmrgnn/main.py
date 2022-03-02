@@ -1,3 +1,4 @@
+from tabnanny import verbose
 import click
 import os
 import logging
@@ -36,7 +37,7 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
 @main.command()
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
 @click.argument('name')
-@click.argument('epochs', default=3)
+@click.argument('epochs', type=int)
 @click.option('--checkpoint-path', default='/tmp/checkpoint', type=click.Path(), help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
 @click.option('--validation', default=0.1, help='relative size of validation')
@@ -68,7 +69,7 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
     callbacks.append(model_checkpoint_callback)
 
     train_data, validation_data = load_data(
-        tfrecords, validation, embeddings, scale=False)
+        tfrecords, validation, embeddings)
 
     # explicitly call model to get shapes defined
     for t in train_data:
@@ -77,7 +78,7 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
         break
 
     results = model.fit(train_data, epochs=epochs, callbacks=callbacks,
-                        validation_data=validation_data, validation_freq=1)
+                        validation_data=validation_data, validation_freq=1, verbose=1)
 
     model.save(name)
 
@@ -108,7 +109,8 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
 
     model = tf.keras.models.load_model(
         model_file, custom_objects=nmrgnn.custom_objects)
-    train_data, validation_data = load_data(tfrecords, validation, None)
+    train_data, validation_data = load_data(
+        tfrecords, validation, None, sample=False)
     if validation > 0:
         data = validation_data
     else:
@@ -312,7 +314,7 @@ def hyper(tfrecords, epochs, embeddings, tuning_path, validation, tensorboard):
         callbacks.append(tensorboard_callback)
 
     train_data, validation_data = load_data(
-        tfrecords, validation, embeddings, scale=False)
+        tfrecords, validation, embeddings)
 
     tuner = kt.tuners.hyperband.Hyperband(
         nmrgnn.build_GNNModel,

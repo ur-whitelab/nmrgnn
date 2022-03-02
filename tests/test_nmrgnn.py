@@ -33,6 +33,24 @@ class TestMPL(unittest.TestCase):
         new_nodes = mpl([nodes, nlist, edges, inv_degree])
         assert new_nodes.shape == nodes.shape
 
+    def test_mpl2_build(self):
+        # Nodes ->  5 of them, each with features 16
+        nodes = tf.one_hot([2, 4, 0, 1, 3], 16)
+        # neighbors ->  5 nodes, 2 neighbors
+        nlist = np.zeros((5, 2), dtype=np.int)
+        # make each atom neighbors with subsequent 2 atoms, mod 5
+        for i in range(5):
+            for k, j in enumerate(range(-1, 3, 2)):
+                nlist[i, k] = (i + j) % 5
+        nlist = tf.constant(nlist)
+        # 5 nodes, 2 neighbors, 2 feature
+        edges = tf.ones((5, 2, 2))
+        # make inv degree (each one has two connections)
+        inv_degree = np.ones((5,)) / 2
+        mpl = nmrgnn.MP2Layer()
+        new_nodes = mpl([nodes, nlist, edges, inv_degree])
+        assert new_nodes.shape == nodes.shape
+
     def test_ampl_build(self):
         # Nodes ->  5 of them, each with features 16
         nodes = tf.one_hot([2, 4, 0, 1, 3], 16)
