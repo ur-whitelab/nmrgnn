@@ -78,7 +78,7 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
         break
 
     results = model.fit(train_data, epochs=epochs, callbacks=callbacks,
-                        validation_data=validation_data, validation_freq=1, verbose=1)
+                        validation_data=validation_data, validation_freq=1, verbose=2)
 
     model.save(name)
 
@@ -126,6 +126,7 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     rev_names = {v: k for k, v in embeddings['name'].items()}
     for x, y, w in data:
         # get predictions
+        w = np.squeeze(w)
         yhat = model(x)
         ytrue = y[:, 0]
         namei = y[:, 1]  # tf.cast(y[:,1], tf.int32)
@@ -166,11 +167,11 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
     for e in np.unique(out.element):
         results[f'{data_name}-{e}-rmsd'] = [len(out[out.element == e].y)]
         results[f'{data_name}-{e}-rmsd'].append(
-            np.mean((out[out.element == e].yhat - out[out.element == e].y)**2))
+            np.sqrt(np.mean((out[out.element == e].yhat - out[out.element == e].y)**2)))
     for n in np.unique(out.name):
         results[f'{data_name}-{n}-rmsd'] = [len(out[out.name == n].y)]
         results[f'{data_name}-{n}-rmsd'].append(
-            np.mean((out[out.name == n].yhat - out[out.name == n].y)**2))
+            np.sqrt(np.mean((out[out.name == n].yhat - out[out.name == n].y)**2)))
     results = pd.DataFrame(results, index=['N', model_name])
     results = results.transpose()
 

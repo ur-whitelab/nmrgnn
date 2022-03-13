@@ -150,7 +150,7 @@ class MPBlock(keras.layers.Layer):
         self.mp = []
         # stack Message Passing Layers as a block
         for _ in range(hypers.get('mp_layers')):
-            self.mp.append(MP2Layer(hypers.get('mp_activation')))
+            self.mp.append(MPLayer(hypers.get('mp_activation')))
 
         self.hypers = hypers
 
