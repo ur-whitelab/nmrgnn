@@ -1,3 +1,4 @@
+from asyncio import base_tasks
 from tabnanny import verbose
 import click
 import os
@@ -44,7 +45,8 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
 @click.option('--tensorboard', default=None, help='path to tensorboard logs')
 @click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
 @click.option('--loss-balance', default=1.0, help='Balance between L2 (max @ 1.0) and corr loss (max @ 0.0)')
-def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance):
+@click.option('--batch-size', default=None, type=int, help='Batch size. If None, will make equal to dataset number')
+def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance, batch_size):
     '''Train the model'''
 
     model = nmrgnn.build_GNNModel(loss_balance=loss_balance)
@@ -69,7 +71,7 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
     callbacks.append(model_checkpoint_callback)
 
     train_data, validation_data = load_data(
-        tfrecords, validation, embeddings)
+        tfrecords, validation, embeddings, batch_size=batch_size)
 
     # explicitly call model to get shapes defined
     for t in train_data:
