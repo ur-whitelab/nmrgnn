@@ -52,16 +52,23 @@ def squash_batch(state, x, L):
     '''
     # Have B batches of tuples
     # Want to squash on leading dimension
-    s, i = state
+    # Need to increment indices
+    s, i, n = state
     if i % L == 0:
         s = x
+        n = tf.shape(x[0][0])[0]
     else:
-        s = (tuple(tf.concat([s[0][i], x[0][i]], axis=0) for i in range(len(x[0]))),
-             tf.concat([s[1], x[1]], axis=0),
-             tf.concat([s[2], x[2]], axis=0))
+        snew = [[tf.concat([s[0][i], x[0][i]], axis=0) for i in range(len(x[0]))],
+                tf.concat([s[1], x[1]], axis=0),
+                tf.concat([s[2], x[2]], axis=0)]
+        # need to increment indices on nlist
+        snew[0][1] = tf.concat([s[0][1], x[0][1] + n], axis=0)
+        n += tf.shape(x[0][0])[0]
+        # need to make types match
+        s = (tuple(snew[0]), *snew[1:])
 
     # state, (if full, current)
-    return (s, i + 1), (i % L == L - 1, s)
+    return (s, i + 1, n), (i % L == L - 1, s)
 
 
 def reshape_mask(*x):
@@ -110,9 +117,10 @@ def load_data(tfrecords, validation, embeddings, sample=True, batch_size=None):
         for x0 in d:
             break
         train_data = tf.data.Dataset.sample_from_datasets(
-            data, seed=0).scan((x0, 0), squash_fxn)
+            data, seed=0).scan((x0, 0, 0), squash_fxn)
         validation_data = tf.data.Dataset.sample_from_datasets(
-            validation_data, seed=0).scan((x0, 0), squash_fxn)
+            validation_data, seed=0).scan((x0, 0, 0), squash_fxn)
+
         # now we need to only keep the full element
         # we use indicator inserted during scan and then remove it
         train_data = train_data.filter(

@@ -77,9 +77,9 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
     ha_r = NameCorr(label_idx, name='ha_r')
     ha_count = NameCount(label_idx, name='avg_ha_count')
 
-    label_idx = type_mask(r'DFT.*', embeddings, regex=True)
-    dft_r = NameCorr(label_idx, name='dft_r')
-    dft_count = NameCount(label_idx, name='avg_dft_count')
+    label_idx = type_mask(r'CAS.*', embeddings, regex=True)
+    cas_r = NameCorr(label_idx, name='cas_r')
+    cas_count = NameCount(label_idx, name='avg_cas_count')
     label_idx = type_mask(r'MB.*', embeddings, regex=True)
     mb_r = NameCorr(label_idx, name='mb_r')
     mb_count = NameCount(label_idx, name='avg_mb_count')
@@ -98,7 +98,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
                       hn_r,
                       ha_r, ha_count,
                       mb_r, mb_count,
-                      dft_r, dft_count
+                      cas_r, cas_count
                   ] if metrics else None
                   )
     return model
