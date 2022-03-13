@@ -15,7 +15,7 @@ def setup_optimizations():
     tf.config.optimizer.set_jit(True)
     from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
-    #policy = mixed_precision.Policy('mixed_float16')
+    # policy = mixed_precision.Policy('mixed_float16')
     # mixed_precision.set_policy(policy)
 
 
@@ -47,7 +47,28 @@ def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
     return confident
 
 
-def load_data(tfrecords, validation, embeddings, sample=True):
+def squash_batch(state, x, L):
+    '''Squash batch of tensors into one tensor.
+    '''
+    # Have B batches of tuples
+    # Want to squash on leading dimension
+    s, i = state
+    if i % L == 0:
+        s = x
+    else:
+        s = (tuple(tf.concat([s[0][i], x[0][i]], axis=0) for i in range(len(x[0]))),
+             tf.concat([s[1], x[1]], axis=0),
+             tf.concat([s[2], x[2]], axis=0))
+
+    # state, (if full, current)
+    return (s, i + 1), (i % L == L - 1, s)
+
+
+def reshape_mask(*x):
+    return (x[0], x[1], x[2][None])
+
+
+def load_data(tfrecords, validation, embeddings, sample=True, batch_size=None):
     # load data and split into train/validation
 
     # need to load each tf record individually and split
@@ -79,12 +100,29 @@ def load_data(tfrecords, validation, embeddings, sample=True):
                 data = data.concatenate(d)
                 validation_data = validation_data.concatenate(v)
     if sample:
-        train_data = tf.data.Dataset.sample_from_datasets(data)
-        validation_data = tf.data.Dataset.sample_from_datasets(validation_data)
+        if batch_size is None:
+            batch_size = len(tfrecords)
+        # we're going to squash elements together to batch via concat
+
+        def squash_fxn(s, x):
+            return squash_batch(s, x, batch_size)
+        # not sure how to get something with right spec. Should not be used
+        for x0 in d:
+            break
+        train_data = tf.data.Dataset.sample_from_datasets(
+            data, seed=0).scan((x0, 0), squash_fxn)
+        validation_data = tf.data.Dataset.sample_from_datasets(
+            validation_data, seed=0).scan((x0, 0), squash_fxn)
+        # now we need to only keep the full element
+        # we use indicator inserted during scan and then remove it
+        train_data = train_data.filter(
+            lambda b, x: b).map(lambda b, x: x)
+        validation_data = validation_data.filter(
+            lambda b, x: b).map(lambda b, x: x)
     else:
         # shuffle train at each iteration
         train_data = data.shuffle(500, reshuffle_each_iteration=True)
-    return train_data.prefetch(tf.data.experimental.AUTOTUNE), validation_data.cache()
+    return train_data.map(reshape_mask).prefetch(tf.data.experimental.AUTOTUNE), validation_data.map(reshape_mask).cache()
 
 
 def load_model(model_file=None):

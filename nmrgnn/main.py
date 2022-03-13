@@ -78,7 +78,7 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
         break
 
     results = model.fit(train_data, epochs=epochs, callbacks=callbacks,
-                        validation_data=validation_data, validation_freq=1, verbose=2)
+                        validation_data=validation_data, validation_freq=1, verbose=1)
 
     model.save(name)
 
