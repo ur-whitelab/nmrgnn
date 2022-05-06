@@ -22,15 +22,15 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
 
     if model_version == 'v1-ensemble':
         hp.Choice('atom_feature_size', [
-            32, 64, 128, 256], ordered=True, default=32)
+            32, 64, 128, 256], ordered=True, default=64)
         hp.Choice('edge_feature_size', [
-                  1, 2, 3, 8, 64], ordered=True, default=8)
+                  1, 2, 3, 8, 64], ordered=True, default=32)
         hp.Choice('edge_hidden_size', [16, 32, 64,
-                                       128, 256], ordered=True, default=32)
+                                       128, 256], ordered=True, default=64)
         hp.Int('mp_layers', 1, 6, step=1, default=4)
         hp.Int('fc_layers', 2, 6, step=1, default=4)
         hp.Int('edge_fc_layers', 2, 6, step=1, default=3)
-        hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.0)
+        hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
         hp.Choice('dropout', [True, False], default=False)
         hp.Fixed('rbf_low', 0.005)
         hp.Fixed('rbf_high', 0.20)
@@ -39,7 +39,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
         hp.Choice('fc_activation', [
             'relu', 'swish'], default='swish')
         hp.Choice('mp_type', ['mp', 'mpec'], default='mpec')
-        hp.Choice('learning_rate', [1e-2, 5e-3, 1e-3, 1e-4], default=5e-3)
+        hp.Choice('learning_rate', [1e-2, 5e-3, 1e-3, 1e-4], default=1e-4)
 
         def model_build():
             m = GNNModel(hp, standards, return_std=True)
@@ -77,7 +77,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
     except AttributeError:
         model.nmodels = 0
 
-    optimizer = tf.keras.optimizers.Adam(hp.get('learning_rate'), global_clipnorm=1)
+    optimizer = tf.keras.optimizers.Adam(hp.get('learning_rate'), global_clipnorm=10)
 
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_rmsd = NameRMSD(label_idx, name='h_rmsd')

@@ -134,6 +134,9 @@ def eval_tfrecords(tfrecords, model_file, validation, data_name, merge):
         # get predictions
         w = np.squeeze(w)
         yhat = model(x)
+        # in case we have uncertainty output
+        if len(yhat.shape) == 2:
+            yhat = yhat[...,0]
         ytrue = y[:, 0]
         namei = y[:, 1]  # tf.cast(y[:,1], tf.int32)
         name.extend([rev_names[int(n)].split('-')[1]
