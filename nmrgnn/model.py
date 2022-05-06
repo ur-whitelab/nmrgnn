@@ -63,9 +63,9 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
         hp.Fixed('rbf_low', 0.005)
         hp.Fixed('rbf_high', 0.20)
         hp.Choice('mp_activation', [
-            'relu', 'softplus', 'tanh'], default='softplus')
+            'relu', 'swish', 'tanh'], default='swish')
         hp.Choice('fc_activation', [
-            'relu', 'softplus'], default='softplus')
+            'relu', 'swish'], default='swish')
         hp.Choice('mp_type', ['mp', 'mpec'], default='mp')
         model = GNNModel(hp, standards)
         loss = NameLoss(label_idx, s=loss_balance)
