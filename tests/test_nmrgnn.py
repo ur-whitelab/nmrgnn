@@ -47,7 +47,7 @@ class TestMPL(unittest.TestCase):
         edges = tf.ones((5, 2, 2))
         # make inv degree (each one has two connections)
         inv_degree = np.ones((5,)) / 2
-        mpl = nmrgnn.MP2Layer()
+        mpl = nmrgnn.MPECLayer()
         new_nodes = mpl([nodes, nlist, edges, inv_degree])
         assert new_nodes.shape == nodes.shape
 
@@ -199,6 +199,36 @@ class TestSerialize(unittest.TestCase):
                 'gnn_model_load_test', custom_objects=nmrgnn.custom_objects)
         finally:
             shutil.rmtree('gnn_model_load_test')
+
+    def test_model_v1(self):
+        nodes = tf.one_hot([2, 4, 1, 3, 3], 16)
+        # neighbors -> 5 nodes, 2 neighbors
+        nlist = np.zeros((5, 2), dtype=np.int)
+        # make each atom neighbors with subsequent 2 atoms, mod 5
+        for i in range(5):
+            for k, j in enumerate(range(-1, 3, 2)):
+                nlist[i, k] = (i + j) % 5
+        nlist = tf.constant(nlist)
+        # 5 nodes, 2 neighbors, 4 feature
+        edges = tf.ones((5, 2))
+        # make inv degree (each one has two connections)
+        inv_degree = np.ones((5,)) / 2
+        inputs = [nodes, nlist, edges, inv_degree]
+
+        # make peak standards
+        ps = {}
+        for i in range(16):
+            ps[i] = ('F', 0, 1)
+
+        model = nmrgnn.build_GNNModel(model_version="v1-ensemble")
+        out_nodes = model(inputs)
+        try:
+            model.save('v1_model_load_test')
+            del model
+            tf.keras.models.load_model(
+                'v1_model_load_test', custom_objects=nmrgnn.custom_objects)
+        finally:
+            shutil.rmtree('v1_model_load_test')
 
 
 class TestGNNModel(unittest.TestCase):

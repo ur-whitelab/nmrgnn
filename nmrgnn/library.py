@@ -6,6 +6,7 @@ import os
 import tensorflow as tf
 import nmrdata
 import nmrdata
+import kdens
 import nmrgnn
 
 
@@ -48,11 +49,22 @@ def check_peaks(atoms, peaks, cutoff_sigma=4, warn_sigma=2.5):
 
 
 def squash_batch(state, x, L):
-    '''Squash batch of tensors into one tensor.
+    '''Squash batch of tensors into one big tensor.
+
+    The tensors come from sampling from datasets.
+    If original shape of tensor is (N_0, F), (N_1, F)
+    and batch size (L) is 2, they will be combined
+    with a few to make (N_0 + N_1, F)
+
+    L - number of elements in batch
+    x - current record
     '''
     # Have B batches of tuples
     # Want to squash on leading dimension
-    # Need to increment indices
+
+    # s -> current sample
+    # i -> index
+    # n -> total items of current batch
     s, i, n = state
     if i % L == 0:
         s = x
@@ -75,7 +87,7 @@ def reshape_mask(*x):
     return (x[0], x[1], x[2][None])
 
 
-def load_data(tfrecords, validation, embeddings, sample=True, batch_size=None):
+def load_data(tfrecords, validation, embeddings, sample=True, batch_size=None, ensemble=0):
     # load data and split into train/validation
 
     # need to load each tf record individually and split
@@ -84,7 +96,8 @@ def load_data(tfrecords, validation, embeddings, sample=True, batch_size=None):
     validation_data = None
     print(f'Loading from {len(tfrecords)} files')
     for tfr in tfrecords:
-        d = nmrdata.dataset(tfr, embeddings=embeddings, label_info=True)
+        d = nmrdata.dataset(tfr, embeddings=embeddings,
+                            label_info=True)
         # get size and split
         ds = len(list(d))
         vs = int(validation * ds)
@@ -107,30 +120,48 @@ def load_data(tfrecords, validation, embeddings, sample=True, batch_size=None):
                 data = data.concatenate(d)
                 validation_data = validation_data.concatenate(v)
     if sample:
-        if batch_size is None:
-            batch_size = len(tfrecords)
-        # we're going to squash elements together to batch via concat
+        if ensemble > 0:
+            if batch_size is not None and batch_size != ensemble:
+                raise ValueError(
+                    f'batch_size ({batch_size}) must be equal to ensemble ({ensemble})')
+            # just sample from datasets
+            train_data = tf.data.Dataset.sample_from_datasets(
+                data, seed=0).map(kdens.map_reshape(ensemble, is_batched=True))
+            for t in train_data:
+                break
+            v = validation_data[0]
+            for vi in validation_data[1:]:
+                v.concatenate(vi)
+            validation_data = v
+        else:
+            if batch_size is None:
+                batch_size = len(tfrecords)
+            # we're going to squash elements together to batch via concat
 
-        def squash_fxn(s, x):
-            return squash_batch(s, x, batch_size)
-        # not sure how to get something with right spec. Should not be used
-        for x0 in d:
-            break
-        train_data = tf.data.Dataset.sample_from_datasets(
-            data, seed=0).scan((x0, 0, 0), squash_fxn)
-        validation_data = tf.data.Dataset.sample_from_datasets(
-            validation_data, seed=0).scan((x0, 0, 0), squash_fxn)
+            def squash_fxn(s, x):
+                return squash_batch(s, x, batch_size)
 
-        # now we need to only keep the full element
-        # we use indicator inserted during scan and then remove it
-        train_data = train_data.filter(
-            lambda b, x: b).map(lambda b, x: x)
-        validation_data = validation_data.filter(
-            lambda b, x: b).map(lambda b, x: x)
+            # need to get first record for scan
+            for x0 in d:
+                break
+
+            train_data = tf.data.Dataset.sample_from_datasets(
+                data, seed=0).scan((x0, 0, 0), squash_fxn)
+            validation_data = tf.data.Dataset.sample_from_datasets(
+                validation_data, seed=0).scan((x0, 0, 0), squash_fxn)
+
+            # now we need to only keep the full element
+            # we use indicator inserted during scan and then remove it
+            train_data = train_data.filter(
+                lambda b, x: b).map(lambda b, x: x)
+            validation_data = validation_data.filter(
+                lambda b, x: b).map(lambda b, x: x)
     else:
         # shuffle train at each iteration
         train_data = data.shuffle(500, reshuffle_each_iteration=True)
-    return train_data.map(reshape_mask).prefetch(tf.data.experimental.AUTOTUNE), validation_data.map(reshape_mask).cache()
+        if ensemble > 0:
+            raise NotImplementedError()
+    return train_data.prefetch(tf.data.experimental.AUTOTUNE), validation_data.cache()
 
 
 def load_model(model_file=None):

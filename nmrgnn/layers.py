@@ -46,9 +46,9 @@ class MPLayer(keras.layers.Layer):
         return out
 
 
-class MP2Layer(keras.layers.Layer):
-    def __init__(self, activation=None, kernel_regularizer=None, name='MP2Layer', **kwargs):
-        super(MP2Layer, self).__init__(name=name, **kwargs)
+class MPECLayer(keras.layers.Layer):
+    def __init__(self, activation=None, kernel_regularizer=None, name='MPECLayer', **kwargs):
+        super(MPECLayer, self).__init__(name=name, **kwargs)
         self.activation = tf.keras.activations.get(activation)
         self.mpl_regularizer = tf.keras.regularizers.get(kernel_regularizer)
 
@@ -62,7 +62,7 @@ class MP2Layer(keras.layers.Layer):
         )
 
     def get_config(self):
-        config = super(MP2Layer, self).get_config()
+        config = super(MPECLayer, self).get_config()
         config.update(
             {'activation': self.activation})
         return config

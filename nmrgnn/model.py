@@ -4,54 +4,80 @@ import numpy as np
 import kerastuner as kt
 import os
 import nmrdata
+import kdens
 from .layers import *
 from .losses import *
 from .metrics import *
 
 
-def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0):
+def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, model_version='v0'):
     '''Build model with hyper parameter object'''
-    # small AMP (170k parameters)
-    #hp.Choice('atom_feature_size', [32, 64, 128, 256], ordered=True, default=128)
-    #hp.Choice('edge_feature_size', [1, 2, 3, 64], ordered=True, default=64)
-    #hp.Choice('edge_hidden_size', [16, 32, 64, 128, 256], ordered=True, default=64)
-    #hp.Int('mp_layers', 1, 6, step=1, default=4)
-    #hp.Int('fc_layers', 2, 6, step=1, default=3)
-    #hp.Int('edge_fc_layers', 2, 6, step=1, default=3)
-
-    hp.Choice('atom_feature_size', [
-              32, 64, 128, 256], ordered=True, default=256)
-    hp.Choice('edge_feature_size', [1, 2, 3, 8, 64], ordered=True, default=3)
-    hp.Choice('edge_hidden_size', [16, 32, 64,
-                                   128, 256], ordered=True, default=128)
-    hp.Int('mp_layers', 1, 6, step=1, default=4)
-    hp.Int('fc_layers', 2, 6, step=1, default=4)
-    hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
-
-    hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.025)
-    hp.Choice('dropout', [True, False], default=True)
-    hp.Fixed('rbf_low', 0.005)
-    hp.Fixed('rbf_high', 0.20)
-    hp.Choice('mp_activation', [
-        'relu', 'softplus', 'tanh'], default='softplus')
-    hp.Choice('fc_activation', [
-        'relu', 'softplus'], default='softplus')
 
     # load peak standards
     standards = nmrdata.load_standards()
+    embeddings = nmrdata.load_embeddings()
 
-    model = GNNModel(hp, standards)
+    # label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
+    label_idx = type_mask(r'.*', embeddings, regex=True)
+
+    if model_version == 'v1-ensemble':
+        hp.Choice('atom_feature_size', [
+            32, 64, 128, 256], ordered=True, default=32)
+        hp.Choice('edge_feature_size', [
+                  1, 2, 3, 8, 64], ordered=True, default=8)
+        hp.Choice('edge_hidden_size', [16, 32, 64,
+                                       128, 256], ordered=True, default=32)
+        hp.Int('mp_layers', 1, 6, step=1, default=4)
+        hp.Int('fc_layers', 2, 6, step=1, default=4)
+        hp.Int('edge_fc_layers', 2, 6, step=1, default=3)
+        hp.Choice('noise', [0.0, 0.025, 0.05, 0.1], ordered=True, default=0.0)
+        hp.Choice('dropout', [True, False], default=False)
+        hp.Fixed('rbf_low', 0.005)
+        hp.Fixed('rbf_high', 0.20)
+        hp.Choice('mp_activation', [
+            'relu', 'swish', 'tanh'], default='swish')
+        hp.Choice('fc_activation', [
+            'relu', 'swish'], default='swish')
+        hp.Choice('mp_type', ['mp', 'mpec'], default='mpec')
+
+        def model_build():
+            m = GNNModel(hp, standards, return_std=True)
+            return m, m.half_call1, m.half_call2
+        model = kdens.DeepEnsemble(model_build, partial=True)
+        loss = NameNLL(label_idx)
+
+    elif model_version == 'v0':
+        hp.Choice('atom_feature_size', [
+            32, 64, 128, 256], ordered=True, default=256)
+        hp.Choice('edge_feature_size', [
+                  1, 2, 3, 8, 64], ordered=True, default=3)
+        hp.Choice('edge_hidden_size', [16, 32, 64,
+                                       128, 256], ordered=True, default=128)
+        hp.Int('mp_layers', 1, 6, step=1, default=4)
+        hp.Int('fc_layers', 2, 6, step=1, default=4)
+        hp.Int('edge_fc_layers', 2, 6, step=1, default=4)
+
+        hp.Choice('noise', [0.0, 0.025, 0.05, 0.1],
+                  ordered=True, default=0.025)
+        hp.Choice('dropout', [True, False], default=True)
+        hp.Fixed('rbf_low', 0.005)
+        hp.Fixed('rbf_high', 0.20)
+        hp.Choice('mp_activation', [
+            'relu', 'softplus', 'tanh'], default='softplus')
+        hp.Choice('fc_activation', [
+            'relu', 'softplus'], default='softplus')
+        hp.Choice('mp_type', ['mp', 'mpec'], default='mp')
+        model = GNNModel(hp, standards)
+        loss = NameLoss(label_idx, s=loss_balance)
+
+    try:
+        model.nmodels
+    except AttributeError:
+        model.nmodels = 0
 
     # compile with MSLE (to treat vastly different label mags)
     optimizer = tf.keras.optimizers.Adam(
         hp.Choice('learning_rate', [1e-3, 5e-4, 1e-4, 1e-5], default=1e-4))
-
-    embeddings = nmrdata.load_embeddings()
-
-    #label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
-    label_idx = type_mask(r'.*', embeddings, regex=True)
-    corr_loss = NameLoss(label_idx, s=loss_balance)
-    loss = corr_loss
 
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_rmsd = NameRMSD(label_idx, name='h_rmsd')
@@ -150,7 +176,10 @@ class MPBlock(keras.layers.Layer):
         self.mp = []
         # stack Message Passing Layers as a block
         for _ in range(hypers.get('mp_layers')):
-            self.mp.append(MPLayer(hypers.get('mp_activation')))
+            if hypers.get('mp_type') == 'mp':
+                self.mp.append(MPLayer(hypers.get('mp_activation')))
+            elif hypers.get('mp_type') == 'mpec':
+                self.mp.append(MPECLayer(hypers.get('mp_activation')))
 
         self.hypers = hypers
 
@@ -202,14 +231,15 @@ class FCBlock(keras.layers.Layer):
 
 
 class GNNModel(keras.Model):
-    def __init__(self, hypers, peak_standards, name='gnn-model', **kwargs):
+    def __init__(self, hypers, peak_standards, return_std=False, name='gnn-model', **kwargs):
         super(GNNModel, self).__init__(name=name, **kwargs)
         self.edge_rbf = RBFExpansion(
             hypers.get('rbf_low'), hypers.get('rbf_high'), hypers.get('edge_hidden_size'))
         self.edge_fc_block = EdgeFCBlock(hypers)
         self.mp_block = MPBlock(hypers)
         self.fc_block = FCBlock(hypers)
-        self.noise_block = tf.keras.layers.GaussianNoise(hypers.get('noise'))
+        self.noise_block = tf.keras.layers.GaussianNoise(
+            hypers.get('noise'))
         self.hypers = hypers
         self.embed_dim = hypers.get('atom_feature_size')
         if hypers.get('dropout'):
@@ -226,6 +256,8 @@ class GNNModel(keras.Model):
             self.peak_std[k] = v[2]
             self.peak_avg[k] = v[1]
 
+        self.return_std = return_std
+
     def get_config(self):
         config = super(GNNModel, self).get_config()
         config.update(
@@ -235,14 +267,15 @@ class GNNModel(keras.Model):
     def build(self, input_shapes):
         # get number of elements
         num_elem = input_shapes[0][-1]
-        self.out_layer = tf.keras.layers.Dense(num_elem)
+        self.num_elem = num_elem
+        self.out_layer = tf.keras.layers.Dense(num_elem * 2)
         # they are already one-hots, so no need to use proper embedding
         self.embed_layer = tf.keras.layers.Dense(
             self.embed_dim, use_bias=False)
         self.peak_std = self.peak_std[:num_elem]
         self.peak_avg = self.peak_avg[:num_elem]
 
-    def call(self, inputs, training=False):
+    def call(self, inputs, training=None):
         # node_input should be 1 hot!
         # as written here, edge input is distance ONLY
         # modify if you want to include type informaton
@@ -265,10 +298,49 @@ class GNNModel(keras.Model):
         out_nodes = self.fc_block(semi_nodes)
         if self.dropout is not None:
             out_nodes = self.dropout(out_nodes, training)
-        full_peaks = self.out_layer(out_nodes)
-        # if training:
-        #    peaks = tf.reduce_sum(full_peaks * node_input, axis=-1)
-        # else:
-        peaks = tf.reduce_sum(full_peaks * node_input * self.peak_std +
+        full_peaks = tf.reshape(self.out_layer(
+            out_nodes), (-1, self.num_elem, 2))
+        peaks = tf.reduce_sum(full_peaks[..., 0] * node_input * self.peak_std +
                               node_input * self.peak_avg, axis=-1)
+        if self.return_std:
+            peak_var = tf.clip_by_value(tf.reduce_sum(full_peaks[..., 1]
+                                                      * node_input + node_input * self.peak_std, axis=-1), 1e-3, 1e3)
+            peaks = tf.stack([peaks, peak_var], axis=-1)
+        return peaks
+
+    def half_call1(self, inputs, training=None):
+        # node_input should be 1 hot!
+        # as written here, edge input is distance ONLY
+        # modify if you want to include type informaton
+        node_input, nlist_input, edge_input, inv_degree = inputs
+
+        edge_mask = tf.cast(edge_input > 0, tf.float32)[..., tf.newaxis]
+
+        noised_edges = self.noise_block(edge_input, training)
+        rbf_edges = self.edge_rbf(noised_edges)
+        # want to preserve zeros in input
+        # so multiply here by mask (!)
+        rbf_edges *= edge_mask
+        edge_embeded = self.edge_fc_block(rbf_edges)
+        # want to preserve zeros in input
+        # so multiply here by mask (!)
+        edge_embeded *= edge_mask
+        node_embed = self.embed_layer(node_input)
+        mp_inputs = [node_embed, nlist_input, edge_embeded, inv_degree]
+        semi_nodes = self.mp_block(mp_inputs)
+        return semi_nodes, node_input
+
+    def half_call2(self, inputs, training=None):
+        semi_nodes, node_input = inputs
+        out_nodes = self.fc_block(semi_nodes)
+        if self.dropout is not None:
+            out_nodes = self.dropout(out_nodes, training)
+        full_peaks = tf.reshape(self.out_layer(
+            out_nodes), (-1, self.num_elem, 2))
+        peaks = tf.reduce_sum(full_peaks[..., 0] * node_input * self.peak_std +
+                              node_input * self.peak_avg, axis=-1)
+        if self.return_std:
+            peak_var = tf.clip_by_value(tf.reduce_sum(full_peaks[..., 1]
+                                                      * node_input + node_input * self.peak_std, axis=-1), 1e-3, 1e3)
+            peaks = tf.stack([peaks, peak_var], axis=-1)
         return peaks

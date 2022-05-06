@@ -39,6 +39,7 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
 @click.argument('tfrecords', nargs=-1, type=click.Path(exists=True))
 @click.argument('name')
 @click.argument('epochs', type=int)
+@click.option('--model-version', default='v0', help='version of model to use')
 @click.option('--checkpoint-path', default='/tmp/checkpoint', type=click.Path(), help='where to save model')
 @click.option('--embeddings', default=None, help='path to embeddings')
 @click.option('--validation', default=0.1, help='relative size of validation')
@@ -46,10 +47,13 @@ def unstandardize_labels(x, y, w, peak_std, peak_avg):
 @click.option('--load/--noload', default=False, help='Load saved model at checkpoint path?')
 @click.option('--loss-balance', default=1.0, help='Balance between L2 (max @ 1.0) and corr loss (max @ 0.0)')
 @click.option('--batch-size', default=None, type=int, help='Batch size. If None, will make equal to dataset number')
-def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance, batch_size):
+def train(tfrecords, name, epochs, model_version, embeddings, validation, checkpoint_path, tensorboard, load, loss_balance, batch_size):
     '''Train the model'''
 
-    model = nmrgnn.build_GNNModel(loss_balance=loss_balance)
+    setup_optimizations()
+
+    model = nmrgnn.build_GNNModel(
+        loss_balance=loss_balance, model_version=model_version)
     if load:
         model.load_weights(checkpoint_path)
     callbacks = []
@@ -71,10 +75,10 @@ def train(tfrecords, name, epochs, embeddings, validation, checkpoint_path, tens
     callbacks.append(model_checkpoint_callback)
 
     train_data, validation_data = load_data(
-        tfrecords, validation, embeddings, batch_size=batch_size)
+        tfrecords, validation, embeddings, batch_size=batch_size, ensemble=model.nmodels)
 
     # explicitly call model to get shapes defined
-    for t in train_data:
+    for t in validation_data:
         x, y, m = t
         model(x)
         break
