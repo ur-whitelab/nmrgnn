@@ -33,17 +33,18 @@ class NameLoss(tf.keras.losses.Loss):
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, y_true, y_pred, sample_weight=None):
+        # log cosh loss does not work! Stop trying
         # mask diff by which predictions match the label
-
         w = y_true[:, -1] * tf.cast(tf.reduce_any(
             tf.equal(tf.cast(y_true[:, 1][..., tf.newaxis], self.ln.dtype), self.ln), axis=-1), tf.float32)
         x = y_pred
         y = y_true[:, 0]
+        diff = tf.clip_by_value(y - x, -10, 10)
         l2 = tf.math.divide_no_nan(tf.reduce_sum(
-            w * (y - x)**2), tf.reduce_sum(w))
+            w * diff**2), tf.reduce_sum(w))
         r = corr_coeff(x, y, w)
         return l2 * self.s + (1 - self.s) * (1 - r)
-
+        
 
 class NameNLL(tf.keras.losses.Loss):
     '''Compute negative log-likelihood specific atom name'''

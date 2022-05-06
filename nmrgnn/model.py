@@ -39,6 +39,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
         hp.Choice('fc_activation', [
             'relu', 'swish'], default='swish')
         hp.Choice('mp_type', ['mp', 'mpec'], default='mpec')
+        hp.Choice('learning_rate', [1e-2, 5e-3, 1e-3, 1e-4], default=5e-3)
 
         def model_build():
             m = GNNModel(hp, standards, return_std=True)
@@ -67,6 +68,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
         hp.Choice('fc_activation', [
             'relu', 'swish'], default='swish')
         hp.Choice('mp_type', ['mp', 'mpec'], default='mp')
+        hp.Choice('learning_rate', [1e-3, 5e-4, 1e-4, 1e-5], default=1e-4)
         model = GNNModel(hp, standards)
         loss = NameLoss(label_idx, s=loss_balance)
 
@@ -75,9 +77,7 @@ def build_GNNModel(hp=kt.HyperParameters(), metrics=True, loss_balance=1.0, mode
     except AttributeError:
         model.nmodels = 0
 
-    # compile with MSLE (to treat vastly different label mags)
-    optimizer = tf.keras.optimizers.Adam(
-        hp.Choice('learning_rate', [1e-3, 5e-4, 1e-4, 1e-5], default=1e-4))
+    optimizer = tf.keras.optimizers.Adam(hp.get('learning_rate'), global_clipnorm=1)
 
     label_idx = type_mask(r'.*\-H.*', embeddings, regex=True)
     h_rmsd = NameRMSD(label_idx, name='h_rmsd')
